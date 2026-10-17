@@ -24,7 +24,11 @@
         </div>
     </div>
 
-    <h1>班級管理後台</h1>
+    <!-- 頂部標題與登出按鈕列 -->
+    <div class="top-header-bar">
+        <h1>班級管理後台</h1>
+        <button id="logout-btn" class="btn-secondary hidden" style="width: auto; padding: 6px 16px; background-color: #cb2431; color: white; border: none; white-space: nowrap; margin-bottom: 0;">登出</button>
+    </div>
 
     <!-- 登入區塊 -->
     <div id="auth-section" class="card">
@@ -37,14 +41,10 @@
 
     <!-- 管理操作區塊 -->
     <div id="admin-section" class="card hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h2 id="user-info" style="margin:0;">歡迎回來</h2>
-            <button id="logout-btn" class="btn-secondary" style="width: auto; padding: 6px 16px; background-color: #cb2431; color: white; border: none;">登出</button>
-        </div>
-
-        <!-- 主選單：班級管理、公告管理、財務管理 -->
+        <!-- 主選單：班級管理、學期管理、公告管理、財務管理 -->
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('classes-tab')">班級管理</button>
+            <button class="tab-btn" onclick="switchTab('semesters-tab')">學期管理</button>
             <button class="tab-btn" onclick="switchTab('ann-main-tab')">公告管理</button>
             <button class="tab-btn" onclick="switchTab('fin-main-tab')">財務管理</button>
         </div>
@@ -55,8 +55,21 @@
             <div id="class-list-table" style="margin-top: 15px;"></div>
         </div>
 
+        <!-- 1.5 學期管理頁籤 -->
+        <div id="semesters-tab" class="tab-content">
+            <h3>學期列表</h3>
+            <div id="semester-list-table" style="margin-top: 15px;"></div>
+        </div>
+
         <!-- 2. 公告管理頁籤 -->
         <div id="ann-main-tab" class="tab-content">
+            <!-- 單純下拉式選單 -->
+            <div style="margin-bottom: 15px;">
+                <select id="global-ann-class-select" onchange="onGlobalAnnClassChanged()">
+                    <option value="">-- 全部班級 --</option>
+                </select>
+            </div>
+
             <div class="sub-tab-pill-container">
                 <button id="sub-pill-ann" class="sub-pill-btn active" onclick="switchAnnSubTab('announcements')">公告發布</button>
                 <button id="sub-pill-cat" class="sub-pill-btn" onclick="switchAnnSubTab('ann-cat')">公告類別</button>
@@ -73,17 +86,34 @@
 
         <!-- 3. 財務管理頁籤 -->
         <div id="fin-main-tab" class="tab-content">
+            <!-- 頂部學期與班級篩選下拉選單 -->
+            <div style="margin-bottom: 12px;">
+                <select id="global-fin-semester-select" onchange="onGlobalFinFilterChanged()">
+                    <option value="">-- 全部學期 --</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <select id="global-fin-class-select" onchange="onGlobalFinFilterChanged()">
+                    <option value="">-- 全部班級 --</option>
+                </select>
+            </div>
+
             <div class="sub-tab-pill-container">
-                <button id="sub-pill-fin-rep" class="sub-pill-btn active" onclick="switchFinSubTab('reports')">財務報表</button>
-                <button id="sub-pill-fin-cat" class="sub-pill-btn" onclick="switchFinSubTab('fin-cat')">財務類別</button>
+                <button id="sub-pill-fin-rec" class="sub-pill-btn active" onclick="switchFinSubTab('records')">收支金額明細</button>
+                <button id="sub-pill-fin-rcp" class="sub-pill-btn" onclick="switchFinSubTab('receipts')">發票與收據憑證</button>
             </div>
-            <div id="fin-report-view">
-                <h3>財務報表列表</h3>
-                <div id="fin-report-list" style="margin-top: 15px;"></div>
+
+            <!-- 金額明細檢視 -->
+            <div id="fin-record-view">
+                <div id="fin-record-summary" class="fin-summary-box"></div>
+                <h3>收支金額明細列表</h3>
+                <div id="fin-record-list" style="margin-top: 15px;"></div>
             </div>
-            <div id="fin-cat-view" class="hidden">
-                <h3>財務類別列表</h3>
-                <div id="fin-cat-list" style="margin-top: 15px;"></div>
+
+            <!-- 發票與收據憑證檢視 -->
+            <div id="fin-receipt-view" class="hidden">
+                <h3>發票與收據憑證列表</h3>
+                <div id="fin-receipt-list" style="margin-top: 15px;"></div>
             </div>
         </div>
 
@@ -100,13 +130,42 @@
             <input type="hidden" id="class-edit-uid">
             <label>年度 (例: 114學年度)</label>
             <input type="text" id="class-year" placeholder="請輸入年度">
-            <label>班級編號 (例: 301)</label>
-            <input type="text" id="class-code" placeholder="請輸入班級編號">
             <label>班級全名 (例: 三年一班)</label>
             <input type="text" id="class-name" placeholder="請輸入班級全名">
+            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <input type="checkbox" id="class-is-default" style="width: 18px; height: 18px; margin-bottom: 0; accent-color: #00b96b;">
+                <label for="class-is-default" style="margin-bottom: 0; cursor: pointer; font-weight: bold; color: #1e293b;">
+                    <i class="fa-solid fa-star" style="color: #f5b041;"></i> 設為預設
+                </label>
+            </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('class-modal')">取消</button>
                 <button id="save-class-btn">確認儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1.5 學期 Modal -->
+    <div id="semester-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="semester-modal-title">新增學期</h3>
+                <button id="semester-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('semester')" title="刪除"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <input type="hidden" id="semester-edit-uid">
+            <label>學期名稱 (例: 七上、八下)</label>
+            <input type="text" id="semester-name" placeholder="請輸入學期名稱">
+            <label>排序編號 (數字越小越前面)</label>
+            <input type="number" id="semester-sort" placeholder="例: 1">
+            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <input type="checkbox" id="semester-is-default" style="width: 18px; height: 18px; margin-bottom: 0; accent-color: #00b96b;">
+                <label for="semester-is-default" style="margin-bottom: 0; cursor: pointer; font-weight: bold; color: #1e293b;">
+                    <i class="fa-solid fa-star" style="color: #f5b041;"></i> 設為預設學期
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('semester-modal')">取消</button>
+                <button id="save-semester-btn">確認儲存</button>
             </div>
         </div>
     </div>
@@ -123,6 +182,12 @@
             <input type="text" id="ann-cat-name" placeholder="請輸入類別名稱">
             <label>代表顏色</label>
             <input type="color" id="ann-cat-color" value="#1890ff" style="height: 42px; padding: 2px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <input type="checkbox" id="ann-cat-is-default" style="width: 18px; height: 18px; margin-bottom: 0; accent-color: #00b96b;">
+                <label for="ann-cat-is-default" style="margin-bottom: 0; cursor: pointer; font-weight: bold; color: #1e293b;">
+                    <i class="fa-solid fa-star" style="color: #f5b041;"></i> 設為預設
+                </label>
+            </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('ann-cat-modal')">取消</button>
                 <button id="save-ann-cat-btn">確認儲存</button>
@@ -147,7 +212,6 @@
             <label>公告內容</label>
             <textarea id="ann-note" rows="3" placeholder="請輸入詳細內容"></textarea>
 
-            <!-- 公告附件圖片上傳與預覽區塊 -->
             <label>公告附件圖片 (支援 PNG, JPG, JPEG)</label>
             <div class="upload-drop-zone" id="ann-drop-zone"
                  ondragover="handleDragOver(event, 'ann')" 
@@ -171,20 +235,24 @@
             </div>
             <input type="hidden" id="ann-attachment-url">
 
+            <!-- 開始顯示區間 -->
             <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
-                <label style="font-weight: bold; color: #00b96b; margin-bottom: 8px;"><i class="fa-regular fa-calendar-days"></i> 開始顯示區間</label>
-                <div class="form-row" style="margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="font-weight: bold; color: #00b96b; margin-bottom: 0;"><i class="fa-regular fa-calendar-days"></i> 開始顯示區間</label>
+                    <button type="button" class="btn-secondary" style="width: auto; margin-bottom: 0; padding: 2px 8px; font-size: 11px;" onclick="clearDateRange('start')">清除時間</button>
+                </div>
+                <div class="date-time-row">
                     <div>
-                        <label style="font-size: 11px; color: #64748b;">日期</label>
-                        <div id="start-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('start')">
+                        <label style="font-size: 11px; color: #64748b; margin-bottom: 2px;">日期</label>
+                        <div id="start-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('start')" style="margin-bottom: 0;">
                             <span id="start-date-display" class="placeholder">年 / 月 / 日</span>
                             <i class="fa-regular fa-calendar" style="color: #00b96b;"></i>
                         </div>
                         <input type="hidden" id="ann-start-date">
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: #64748b;">時間</label>
-                        <div class="time-24h-container">
+                        <label style="font-size: 11px; color: #64748b; margin-bottom: 2px;">時間</label>
+                        <div class="time-24h-container" style="margin-bottom: 0;">
                             <select id="ann-start-hour"></select>
                             <span style="font-weight:bold;">:</span>
                             <select id="ann-start-minute"></select>
@@ -193,20 +261,24 @@
                 </div>
             </div>
 
+            <!-- 結束顯示區間 -->
             <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
-                <label style="font-weight: bold; color: #ff4d4f; margin-bottom: 8px;"><i class="fa-regular fa-calendar-xmark"></i> 結束顯示區間</label>
-                <div class="form-row" style="margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="font-weight: bold; color: #ff4d4f; margin-bottom: 0;"><i class="fa-regular fa-calendar-xmark"></i> 結束顯示區間</label>
+                    <button type="button" class="btn-secondary" style="width: auto; margin-bottom: 0; padding: 2px 8px; font-size: 11px;" onclick="clearDateRange('end')">清除時間</button>
+                </div>
+                <div class="date-time-row">
                     <div>
-                        <label style="font-size: 11px; color: #64748b;">日期</label>
-                        <div id="end-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('end')">
+                        <label style="font-size: 11px; color: #64748b; margin-bottom: 2px;">日期</label>
+                        <div id="end-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('end')" style="margin-bottom: 0;">
                             <span id="end-date-display" class="placeholder">年 / 月 / 日</span>
                             <i class="fa-regular fa-calendar" style="color: #ff4d4f;"></i>
                         </div>
                         <input type="hidden" id="ann-end-date">
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: #64748b;">時間</label>
-                        <div class="time-24h-container">
+                        <label style="font-size: 11px; color: #64748b; margin-bottom: 2px;">時間</label>
+                        <div class="time-24h-container" style="margin-bottom: 0;">
                             <select id="ann-end-hour"></select>
                             <span style="font-weight:bold;">:</span>
                             <select id="ann-end-minute"></select>
@@ -229,153 +301,120 @@
         </div>
     </div>
 
-    <!-- 4. 財務類別 Modal -->
-    <div id="fin-cat-modal" class="modal-overlay hidden">
-        <div class="modal-card">
+    <!-- 4. 財務金額紀錄 Modal -->
+    <div id="fin-record-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 520px;">
             <div class="modal-header">
-                <h3 id="fin-cat-modal-title">新增財務類別</h3>
-                <button id="fin-cat-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('fin-cat')" title="刪除"><i class="fa-solid fa-trash"></i></button>
+                <h3 id="fin-record-modal-title">新增金額明細</h3>
+                <button id="fin-record-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('fin-record')" title="刪除"><i class="fa-solid fa-trash"></i></button>
             </div>
-            <input type="hidden" id="fin-cat-edit-uid">
-            <label>類別名稱 (name)</label>
-            <input type="text" id="fin-cat-name" placeholder="請輸入類別名稱">
-            <label>代表顏色 (color)</label>
-            <input type="color" id="fin-cat-color" value="#faad14" style="height: 42px; padding: 2px;">
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="closeModal('fin-cat-modal')">取消</button>
-                <button id="save-fin-cat-btn">確認儲存</button>
-            </div>
-        </div>
-    </div>
+            <input type="hidden" id="fin-record-edit-uid">
 
-    <!-- 5. 財務報表主檔與表身整合 Modal -->
-    <div id="fin-report-modal" class="modal-overlay hidden">
-        <div class="modal-card" style="max-width: 680px;">
-            <div class="modal-header">
-                <h3 id="fin-report-modal-title">新增財務報表（含明細）</h3>
-                <button id="fin-report-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('fin-report')" title="刪除整張報表"><i class="fa-solid fa-trash"></i></button>
-            </div>
-            <input type="hidden" id="fin-report-edit-uid">
-
-            <label>報表名稱 <span style="color:red;">*</span></label>
-            <input type="text" id="fin-report-name" placeholder="例如: 114學年度班費結算表">
-
-            <div class="form-row">
-                <div>
-                    <label>班級 <span style="color:red;">*</span></label>
-                    <select id="fin-report-class-select"><option value="">-- 請選擇班級 --</option></select>
+            <!-- 班級與學期動態選擇或顯示區塊 -->
+            <div id="fin-record-selector-box" class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
+                    <select id="fin-record-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                    <span id="fin-record-class-display" class="highlight-text hidden">-</span>
                 </div>
-                <div>
-                    <label>財務類別 <span style="color:red;">*</span></label>
-                    <select id="fin-report-cat-select"><option value="">-- 請選擇財務類別 --</option></select>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-graduation-cap"></i> 學期:</label>
+                    <select id="fin-record-semester-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                    <span id="fin-record-semester-display" class="highlight-text hidden">-</span>
                 </div>
             </div>
 
-            <label>學期 <span style="color:red;">*</span></label>
-            <select id="fin-report-semester-select"><option value="">-- 請選擇學期 --</option></select>
-
-            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
-                <label style="font-weight: bold; color: #0969da; margin-bottom: 8px;"><i class="fa-regular fa-calendar-days"></i> 報表日期與時間 <span style="color:red;">*</span></label>
-                <div class="form-row" style="margin-bottom: 0;">
-                    <div>
-                        <label style="font-size: 11px; color: #64748b;">日期</label>
-                        <div id="fin-report-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('fin-report')">
-                            <span id="fin-report-date-display" class="placeholder">年 / 月 / 日</span>
-                            <i class="fa-regular fa-calendar" style="color: #0969da;"></i>
-                        </div>
-                        <input type="hidden" id="fin-report-date">
-                    </div>
-                    <div>
-                        <label style="font-size: 11px; color: #64748b;">時間</label>
-                        <div class="time-24h-container">
-                            <select id="fin-report-hour"></select>
-                            <span style="font-weight:bold;">:</span>
-                            <select id="fin-report-minute"></select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 表身明細區塊 -->
-            <div style="border-top: 2px dashed #e2e8f0; padding-top: 14px; margin-top: 14px;">
-                <label style="font-weight: bold; color: #1e293b; font-size: 15px; margin-bottom: 8px;">
-                    <i class="fa-solid fa-list-check"></i> 報表明細 <span style="color:red;">*至少須新增一筆明細才可存檔</span>
-                </label>
-
-                <div id="modal-details-list" style="max-height: 220px; overflow-y: auto; background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px;"></div>
-                <div id="modal-details-summary" style="font-size: 13px; text-align: right; margin-bottom: 12px; color: #475569;"></div>
-
-                <button type="button" class="btn-add-dashed" onclick="openAddDetailModal()">
-                    <i class="fa-solid fa-plus"></i> 新增明細項目
-                </button>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="closeModal('fin-report-modal')">取消</button>
-                <button id="save-fin-report-btn">確認儲存</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 5.5 單筆明細專用編輯/新增 Modal (子彈窗) -->
-    <div id="detail-modal" class="modal-overlay hidden" style="z-index: 2000;">
-        <div class="modal-card" style="max-width: 480px;">
-            <div class="modal-header">
-                <h3 id="detail-modal-title">新增明細項目</h3>
-                <button id="detail-modal-delete-btn" class="trash-btn hidden" onclick="deleteCurrentDetailFromModal()" title="刪除此筆明細"><i class="fa-solid fa-trash"></i></button>
-            </div>
-            <label>明細項目名稱 <span style="color:red;">*</span></label>
-            <input type="text" id="modal-detail-name" placeholder="例如: 班費收繳 / 影印費">
+            <label>項目名稱 <span style="color:red;">*</span></label>
+            <input type="text" id="fin-record-name" placeholder="例: 班費收繳 / 影印費用">
 
             <div class="form-row">
                 <div>
                     <label>收支類型 <span style="color:red;">*</span></label>
-                    <select id="modal-detail-type">
+                    <select id="fin-record-type">
                         <option value="0">支出 (-)</option>
                         <option value="1">收入 (+)</option>
                     </select>
                 </div>
                 <div>
                     <label>金額 <span style="color:red;">*</span></label>
-                    <input type="number" id="modal-detail-amount" placeholder="例如: 500">
+                    <input type="number" id="fin-record-amount" placeholder="例如: 500">
                 </div>
             </div>
 
-            <label>備註</label>
-            <input type="text" id="modal-detail-remark" placeholder="請輸入備註內容">
-
-            <!-- 收據截圖上傳與預覽區塊 -->
-            <label>收據截圖 / 照片 (支援 PNG, JPG, JPEG)</label>
-            <div class="upload-drop-zone" id="receipt-drop-zone"
-                 ondragover="handleDragOver(event, 'receipt')" 
-                 ondragleave="handleDragLeave(event, 'receipt')" 
-                 ondrop="handleDrop(event, 'receipt')">
-                <input type="file" id="receipt-file-input" accept="image/png, image/jpeg, image/jpg" class="hidden" onchange="handleFileSelect(event, 'receipt')">
-                
-                <div id="receipt-upload-prompt" onclick="document.getElementById('receipt-file-input').click()" style="cursor: pointer;">
-                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 24px; color: #00b96b; margin-bottom: 4px;"></i>
-                    <div style="font-size: 13px; color: #475569; font-weight: 500;">點擊開啟資料夾/相簿，或把圖片拖曳至此</div>
-                    <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">限制 PNG, JPG, JPEG 格式</div>
-                </div>
-
-                <div id="receipt-upload-preview-container" class="hidden" style="margin-top: 6px;">
-                    <img id="receipt-upload-preview-img" src="" alt="收據預覽" style="max-height: 120px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;">
-                    <div style="font-size: 12px; color: #00b96b; font-weight: bold; margin-bottom: 6px;">
-                        <i class="fa-solid fa-circle-check"></i> 收據圖片已上傳就緒
-                    </div>
-                    <button type="button" class="btn-secondary" style="width: auto; margin: 0 auto; padding: 4px 12px; font-size: 12px;" onclick="reselectFile('receipt')">更換圖片</button>
-                </div>
+            <label>發生日期 <span style="color:red;">*</span></label>
+            <div id="fin-record-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('fin-record')">
+                <span id="fin-record-date-display" class="placeholder">年 / 月 / 日</span>
+                <i class="fa-regular fa-calendar" style="color: #0969da;"></i>
             </div>
-            <input type="hidden" id="modal-detail-receipt">
+            <input type="hidden" id="fin-record-date">
+
+            <label>備註說明</label>
+            <textarea id="fin-record-remark" rows="2" placeholder="請輸入備註說明（選填）"></textarea>
 
             <div class="modal-footer">
-                <button class="btn-secondary" onclick="closeModal('detail-modal')">取消</button>
-                <button id="save-detail-item-btn" style="background-color: #0969da;">確認完成</button>
+                <button class="btn-secondary" onclick="closeModal('fin-record-modal')">取消</button>
+                <button id="save-fin-record-btn">確認儲存</button>
             </div>
         </div>
     </div>
 
-    <!-- 6. 獨立置中 Modal 日曆彈窗 -->
+    <!-- 5. 財務發票/收據 Modal -->
+    <div id="fin-receipt-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3 id="fin-receipt-modal-title">上傳發票與收據憑證</h3>
+                <button id="fin-receipt-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('fin-receipt')" title="刪除"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <input type="hidden" id="fin-receipt-edit-uid">
+
+            <!-- 班級與學期動態選擇或顯示區塊 -->
+            <div id="fin-receipt-selector-box" class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
+                    <select id="fin-receipt-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                    <span id="fin-receipt-class-display" class="highlight-text hidden">-</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-graduation-cap"></i> 學期:</label>
+                    <select id="fin-receipt-semester-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                    <span id="fin-receipt-semester-display" class="highlight-text hidden">-</span>
+                </div>
+            </div>
+
+            <label>發票 / 收據圖片 (支援 PNG, JPG, JPEG) <span style="color:red;">*</span></label>
+            <div class="upload-drop-zone" id="fin-rcp-drop-zone"
+                 ondragover="handleDragOver(event, 'fin-rcp')" 
+                 ondragleave="handleDragLeave(event, 'fin-rcp')" 
+                 ondrop="handleDrop(event, 'fin-rcp')">
+                <input type="file" id="fin-rcp-file-input" accept="image/png, image/jpeg, image/jpg" class="hidden" onchange="handleFileSelect(event, 'fin-rcp')">
+                
+                <div id="fin-rcp-upload-prompt" onclick="document.getElementById('fin-rcp-file-input').click()" style="cursor: pointer;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 28px; color: #00b96b; margin-bottom: 4px;"></i>
+                    <div style="font-size: 13px; color: #475569; font-weight: 500;">點擊選擇圖片，或將發票圖檔拖曳至此</div>
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">限制 PNG, JPG, JPEG 格式</div>
+                </div>
+
+                <div id="fin-rcp-upload-preview-container" class="hidden" style="margin-top: 6px;">
+                    <img id="fin-rcp-upload-preview-img" src="" alt="發票預覽" style="max-height: 160px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;">
+                    <div style="font-size: 12px; color: #00b96b; font-weight: bold; margin-bottom: 6px;">
+                        <i class="fa-solid fa-circle-check"></i> 發票圖片已就緒
+                    </div>
+                    <button type="button" class="btn-secondary" style="width: auto; margin: 0 auto; padding: 4px 12px; font-size: 12px;" onclick="reselectFile('fin-rcp')">更換圖片</button>
+                </div>
+            </div>
+            <input type="hidden" id="fin-receipt-url">
+
+            <label>備註說明</label>
+            <textarea id="fin-receipt-remark" rows="2" placeholder="備註此發票用途或廠商名稱（選填）"></textarea>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('fin-receipt-modal')">取消</button>
+                <button id="save-fin-receipt-btn">確認儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. 日曆彈窗 -->
     <div id="datepicker-modal" class="datepicker-modal-overlay hidden">
         <div class="datepicker-modal-card">
             <div class="dp-top-bar">
@@ -404,7 +443,7 @@
         </div>
     </div>
 
-    <!-- 7. 通用刪除二次確認 Modal -->
+    <!-- 7. 刪除二次確認 Modal -->
     <div id="confirm-delete-modal" class="modal-overlay hidden">
         <div class="modal-card confirm-card">
             <div class="alert-icon-wrapper"><i class="fa-solid fa-triangle-exclamation"></i></div>

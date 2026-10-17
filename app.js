@@ -11,16 +11,11 @@ const passwordInput = document.getElementById('password');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const authMsg = document.getElementById('auth-msg');
-const userInfo = document.getElementById('user-info');
 
 let currentActiveTab = 'classes-tab'; 
 let currentAnnSubTab = 'announcements'; 
-let currentFinSubTab = 'reports'; 
+let currentFinSubTab = 'records'; 
 let currentDeleteType = null; 
-
-// 暫存當前正在編輯/新增的報表明細陣列（表身）
-let currentReportDetails = [];
-let activeEditingDetailIndex = -1; // -1 代表新增，>=0 代表編輯中的明細索引
 
 // === 全螢幕載入中控制函數 ===
 function showLoading() {
@@ -83,7 +78,7 @@ async function uploadImageToSupabase(file, type) {
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-    const folderPath = type === 'receipt' ? 'receipts' : 'attachments';
+    const folderPath = type === 'fin-rcp' ? 'receipts' : 'attachments';
     const filePath = `${folderPath}/${fileName}`;
 
     const { data, error } = await supabaseClient.storage
@@ -101,9 +96,9 @@ async function uploadImageToSupabase(file, type) {
 
     const publicUrl = publicUrlData.publicUrl;
 
-    if (type === 'receipt') {
-        document.getElementById('modal-detail-receipt').value = publicUrl;
-        showImagePreview('receipt', publicUrl);
+    if (type === 'fin-rcp') {
+        document.getElementById('fin-receipt-url').value = publicUrl;
+        showImagePreview('fin-rcp', publicUrl);
     } else if (type === 'ann') {
         document.getElementById('ann-attachment-url').value = publicUrl;
         showImagePreview('ann', publicUrl);
@@ -146,28 +141,31 @@ function showToast(message, type = 'success') {
 // 初始化 24 小時制下拉選單
 function init24HourSelects() {
     const targets = [
-        { h: 'ann-start-hour', m: 'ann-start-minute' },
-        { h: 'ann-end-hour', m: 'ann-end-minute' },
-        { h: 'fin-report-hour', m: 'fin-report-minute' }
+        { h: 'ann-start-hour', m: 'ann-start-minute', defaultH: '00', defaultM: '00' },
+        { h: 'ann-end-hour', m: 'ann-end-minute', defaultH: '23', defaultM: '59' }
     ];
-
-    let hourHtml = '<option value="">請選擇</option>';
-    for (let i = 0; i < 24; i++) {
-        const val = String(i).padStart(2, '0');
-        hourHtml += `<option value="${val}">${val}</option>`;
-    }
-
-    let minHtml = '<option value="">請選擇</option>';
-    for (let i = 0; i < 60; i += 1) {
-        const val = String(i).padStart(2, '0');
-        minHtml += `<option value="${val}">${val}</option>`;
-    }
 
     targets.forEach(t => {
         const hEl = document.getElementById(t.h);
         const mEl = document.getElementById(t.m);
-        if (hEl) hEl.innerHTML = hourHtml;
-        if (mEl) mEl.innerHTML = minHtml;
+        if (!hEl || !mEl) return;
+
+        let hourHtml = t.defaultH === '' ? '<option value="">請選擇</option>' : '';
+        for (let i = 0; i < 24; i++) {
+            const val = String(i).padStart(2, '0');
+            hourHtml += `<option value="${val}">${val}</option>`;
+        }
+        hEl.innerHTML = hourHtml;
+
+        let minHtml = t.defaultM === '' ? '<option value="">請選擇</option>' : '';
+        for (let i = 0; i < 60; i += 1) {
+            const val = String(i).padStart(2, '0');
+            minHtml += `<option value="${val}">${val}</option>`;
+        }
+        mEl.innerHTML = minHtml;
+
+        if (t.defaultH) hEl.value = t.defaultH;
+        if (t.defaultM) mEl.value = t.defaultM;
     });
 }
 
@@ -179,8 +177,8 @@ function setTimeDropdownsByPrefix(prefix, timeStr) {
         if (hSelect) hSelect.value = parts[0];
         if (mSelect) mSelect.value = parts[1];
     } else {
-        if (hSelect) hSelect.value = '';
-        if (mSelect) mSelect.value = '';
+        if (hSelect) hSelect.value = prefix.includes('start') ? '00' : '23';
+        if (mSelect) mSelect.value = prefix.includes('start') ? '00' : '59';
     }
 }
 
@@ -193,14 +191,24 @@ function getTimeFromDropdownsByPrefix(prefix) {
     return null;
 }
 
+window.clearDateRange = function(type) {
+    setCustomDateValue(type, '');
+    const defH = type === 'start' ? '00' : '23';
+    const defM = type === 'start' ? '00' : '59';
+    const hEl = document.getElementById(`ann-${type}-hour`);
+    const mEl = document.getElementById(`ann-${type}-minute`);
+    if (hEl) hEl.value = defH;
+    if (mEl) mEl.value = defM;
+};
+
 // 主頁籤切換
-window.switchTab = function(tabId) {
+window.switchTab = async function(tabId) {
     currentActiveTab = tabId;
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     
-    if (event && event.target) {
-        event.target.classList.add('active');
+    if (window.event && window.event.target) {
+        window.event.target.classList.add('active');
     } else {
         const btn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
         if (btn) btn.classList.add('active');
@@ -208,14 +216,18 @@ window.switchTab = function(tabId) {
     
     document.getElementById(tabId).classList.add('active');
 
+    await loadGlobalAnnClasses();
+    await loadGlobalFinFilters();
+
     if (tabId === 'classes-tab') loadClasses();
+    else if (tabId === 'semesters-tab') loadSemesters();
     else if (tabId === 'ann-main-tab') {
         if (currentAnnSubTab === 'announcements') loadAnnouncements();
         else loadAnnouncementCategories();
     }
     else if (tabId === 'fin-main-tab') {
-        if (currentFinSubTab === 'reports') loadFinancialReports();
-        else loadFinancialCategories();
+        if (currentFinSubTab === 'records') loadFinancialRecords();
+        else loadFinancialReceipts();
     }
 };
 
@@ -234,25 +246,117 @@ window.switchAnnSubTab = function(subType) {
 // 財務子頁籤切換
 window.switchFinSubTab = function(subType) {
     currentFinSubTab = subType;
-    document.getElementById('sub-pill-fin-rep').classList.toggle('active', subType === 'reports');
-    document.getElementById('sub-pill-fin-cat').classList.toggle('active', subType === 'fin-cat');
-    document.getElementById('fin-report-view').classList.toggle('hidden', subType !== 'reports');
-    document.getElementById('fin-cat-view').classList.toggle('hidden', subType !== 'fin-cat');
+    document.getElementById('sub-pill-fin-rec').classList.toggle('active', subType === 'records');
+    document.getElementById('sub-pill-fin-rcp').classList.toggle('active', subType === 'receipts');
+    document.getElementById('fin-record-view').classList.toggle('hidden', subType !== 'records');
+    document.getElementById('fin-receipt-view').classList.toggle('hidden', subType !== 'receipts');
 
-    if (subType === 'reports') loadFinancialReports();
-    else loadFinancialCategories();
+    if (subType === 'records') loadFinancialRecords();
+    else loadFinancialReceipts();
+};
+
+// 載入公告頁籤頂部的班級選單 (強制抓取最新預設)
+async function loadGlobalAnnClasses() {
+    const selectEl = document.getElementById('global-ann-class-select');
+    if (!selectEl) return;
+
+    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    selectEl.innerHTML = '<option value="">-- 全部班級 --</option>';
+    
+    let defaultUid = '';
+    if (classes) {
+        classes.forEach(c => {
+            selectEl.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            if (c.is_default) {
+                defaultUid = c.uid;
+            }
+        });
+    }
+
+    // 每次載入時優先直接對齊資料庫目前的預設值
+    if (defaultUid) {
+        selectEl.value = defaultUid;
+    } else {
+        selectEl.value = "";
+    }
+}
+
+window.onGlobalAnnClassChanged = function() {
+    if (currentActiveTab === 'ann-main-tab' && currentAnnSubTab === 'announcements') {
+        loadAnnouncements();
+    }
+};
+
+// 載入財務頁籤頂部的學期與班級選單 (強制抓取最新預設)
+async function loadGlobalFinFilters() {
+    const semesterSelect = document.getElementById('global-fin-semester-select');
+    const classSelect = document.getElementById('global-fin-class-select');
+    if (!semesterSelect || !classSelect) return;
+
+    // 載入學期
+    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+    semesterSelect.innerHTML = '<option value="">-- 全部學期 --</option>';
+    let defaultSemUid = '';
+    if (semesters && semesters.length > 0) {
+        semesters.forEach(s => {
+            semesterSelect.innerHTML += `<option value="${s.uid}">${s.name}</option>`;
+            if (s.is_default) defaultSemUid = s.uid;
+        });
+        if (defaultSemUid) {
+            semesterSelect.value = defaultSemUid;
+        } else {
+            semesterSelect.value = ""; 
+        }
+    }
+
+    // 載入班級
+    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    classSelect.innerHTML = '<option value="">-- 全部班級 --</option>';
+    let defaultClassUid = '';
+    if (classes && classes.length > 0) {
+        classes.forEach(c => {
+            classSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            if (c.is_default) defaultClassUid = c.uid;
+        });
+        if (defaultClassUid) {
+            classSelect.value = defaultClassUid;
+        } else {
+            classSelect.value = "";
+        }
+    }
+}
+
+window.onGlobalFinFilterChanged = function() {
+    if (currentActiveTab === 'fin-main-tab') {
+        if (currentFinSubTab === 'records') loadFinancialRecords();
+        else loadFinancialReceipts();
+    }
 };
 
 // 右下角 FAB 按鈕動作
-window.handleFabClick = function() {
+window.handleFabClick = async function() {
     if (currentActiveTab === 'classes-tab') openAddClassModal();
+    else if (currentActiveTab === 'semesters-tab') openAddSemesterModal();
     else if (currentActiveTab === 'ann-main-tab') {
-        if (currentAnnSubTab === 'announcements') openAddAnnModal();
+        if (currentAnnSubTab === 'announcements') {
+            const globalClassSelect = document.getElementById('global-ann-class-select');
+            const selectedClassUid = globalClassSelect ? globalClassSelect.value : null;
+            openAddAnnModal(selectedClassUid);
+        }
         else openAddAnnCatModal();
     }
     else if (currentActiveTab === 'fin-main-tab') {
-        if (currentFinSubTab === 'reports') openAddFinancialReportModal();
-        else openAddFinancialCategoryModal();
+        const semesterSelect = document.getElementById('global-fin-semester-select');
+        const classSelect = document.getElementById('global-fin-class-select');
+
+        const semesterUid = semesterSelect ? semesterSelect.value : '';
+        const classUid = classSelect ? classSelect.value : '';
+
+        if (currentFinSubTab === 'records') {
+            await openDirectAddFinRecord(classUid, semesterUid);
+        } else {
+            await openDirectAddFinReceiptModal(classUid, semesterUid);
+        }
     }
 };
 
@@ -267,16 +371,21 @@ async function checkUser() {
         if (session) {
             authSection.classList.add('hidden');
             adminSection.classList.remove('hidden');
-            userInfo.textContent = `管理者: ${session.user.email}`;
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
+
             init24HourSelects();
             await loadClasses();
+            await loadSemesters();
+            await loadGlobalAnnClasses();
+            await loadGlobalFinFilters();
             await loadAnnouncementCategories();
             await loadAnnouncements();
-            await loadFinancialCategories();
-            await loadFinancialReports();
+            await loadFinancialRecords();
+            await loadFinancialReceipts();
         } else {
             authSection.classList.remove('hidden');
             adminSection.classList.add('hidden');
+            if (logoutBtn) logoutBtn.classList.add('hidden');
         }
     } finally {
         hideLoading();
@@ -316,8 +425,8 @@ const classModalTitle = document.getElementById('class-modal-title');
 const classModalDeleteBtn = document.getElementById('class-modal-delete-btn');
 const classEditUid = document.getElementById('class-edit-uid');
 const classYear = document.getElementById('class-year');
-const classCode = document.getElementById('class-code');
-const className = document.getElementById('class-name');
+const classNameInput = document.getElementById('class-name');
+const classIsDefault = document.getElementById('class-is-default');
 const saveClassBtn = document.getElementById('save-class-btn');
 
 async function loadClasses() {
@@ -327,13 +436,14 @@ async function loadClasses() {
         classListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設班級</span>` : '';
                 classListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${item.name}</div>
-                            <div class="card-sub">${item.academic_year} ${item.class_name}</div>
+                            <div class="card-title">${item.name} ${defaultBadge}</div>
+                            <div class="card-sub">${item.academic_year}學年度</div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${item.academic_year}', '${item.class_name}', '${item.name}')" title="編輯">
+                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${item.academic_year}', '${item.name}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
@@ -350,19 +460,19 @@ async function loadClasses() {
 window.openAddClassModal = function() {
     classEditUid.value = '';
     classYear.value = '';
-    classCode.value = '';
-    className.value = '';
+    classNameInput.value = '';
+    classIsDefault.checked = false;
     classModalTitle.textContent = '新增班級';
     saveClassBtn.textContent = '新增紀錄';
     classModalDeleteBtn.classList.add('hidden');
     classModal.classList.remove('hidden');
 };
 
-window.openEditClassModal = function(uid, year, code, name) {
+window.openEditClassModal = function(uid, year, name, isDefault) {
     classEditUid.value = uid;
     classYear.value = year;
-    classCode.value = code;
-    className.value = name;
+    classNameInput.value = name;
+    classIsDefault.checked = isDefault === true || isDefault === 'true';
     classModalTitle.textContent = '編輯班級';
     saveClassBtn.textContent = '更新紀錄';
     classModalDeleteBtn.classList.remove('hidden');
@@ -370,22 +480,144 @@ window.openEditClassModal = function(uid, year, code, name) {
 };
 
 saveClassBtn.addEventListener('click', async () => {
-    const academic_year = classYear.value;
-    const class_name = classCode.value;
-    const name = className.value;
+    const academic_year = classYear.value.trim();
+    const name = classNameInput.value.trim();
+    const is_default = classIsDefault.checked;
     const uid = classEditUid.value;
-    if (!academic_year || !class_name || !name) return showToast('請填寫所有欄位！', 'error');
+    
+    if (!academic_year || !name) return showToast('請填寫年度與班級全名！', 'error');
 
     showLoading();
     try {
+        if (is_default) {
+            await supabaseClient.from('classes').update({ is_default: false }).neq('uid', uid || 'none');
+        }
+
         if (uid) {
-            const { error } = await supabaseClient.from('classes').update({ academic_year, class_name, name }).eq('uid', uid);
-            if (error) showToast('修改失敗: ' + error.message, 'error');
-            else { showToast('修改成功！'); closeModal('class-modal'); await loadClasses(); }
+            const { error } = await supabaseClient.from('classes').update({ academic_year, name, is_default }).eq('uid', uid);
+            if (error) {
+                showToast('修改失敗: ' + error.message, 'error');
+            } else { 
+                showToast('修改成功！'); 
+                closeModal('class-modal'); 
+                await loadClasses(); 
+                await loadGlobalAnnClasses(); 
+                await loadGlobalFinFilters(); 
+            }
         } else {
-            const { error } = await supabaseClient.from('classes').insert([{ academic_year, class_name, name }]);
-            if (error) showToast('新增失敗: ' + error.message, 'error');
-            else { showToast('新增成功！'); closeModal('class-modal'); await loadClasses(); }
+            const { error } = await supabaseClient.from('classes').insert([{ academic_year, name, is_default }]);
+            if (error) {
+                showToast('新增失敗: ' + error.message, 'error');
+            } else { 
+                showToast('新增成功！'); 
+                closeModal('class-modal'); 
+                await loadClasses(); 
+                await loadGlobalAnnClasses(); 
+                await loadGlobalFinFilters(); 
+            }
+        }
+    } finally {
+        hideLoading();
+    }
+});
+
+/* ===================================================
+ * 1.5 學期管理 (semesters)
+ * =================================================== */
+const semesterListTable = document.getElementById('semester-list-table');
+const semesterModal = document.getElementById('semester-modal');
+const semesterModalTitle = document.getElementById('semester-modal-title');
+const semesterModalDeleteBtn = document.getElementById('semester-modal-delete-btn');
+const semesterEditUid = document.getElementById('semester-edit-uid');
+const semesterNameInput = document.getElementById('semester-name');
+const semesterSortInput = document.getElementById('semester-sort');
+const semesterIsDefault = document.getElementById('semester-is-default');
+const saveSemesterBtn = document.getElementById('save-semester-btn');
+
+async function loadSemesters() {
+    showLoading();
+    try {
+        const { data } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+        semesterListTable.innerHTML = '';
+        if (data && data.length > 0) {
+            data.forEach(item => {
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設學期</span>` : '';
+                semesterListTable.innerHTML += `
+                    <div class="custom-card-item">
+                        <div class="card-info">
+                            <div class="card-title">${item.name} ${defaultBadge}</div>
+                            <div class="card-sub">排序編號: ${item.sort_order ?? 0}</div>
+                        </div>
+                        <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${item.name}', '${item.sort_order ?? 0}', ${item.is_default})" title="編輯">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        } else {
+            semesterListTable.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無學期資料</div>`;
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+window.openAddSemesterModal = function() {
+    semesterEditUid.value = '';
+    semesterNameInput.value = '';
+    semesterSortInput.value = '0';
+    semesterIsDefault.checked = false;
+    semesterModalTitle.textContent = '新增學期';
+    saveSemesterBtn.textContent = '新增紀錄';
+    semesterModalDeleteBtn.classList.add('hidden');
+    semesterModal.classList.remove('hidden');
+};
+
+window.openEditSemesterModal = function(uid, name, sortOrder, isDefault) {
+    semesterEditUid.value = uid;
+    semesterNameInput.value = name;
+    semesterSortInput.value = sortOrder;
+    semesterIsDefault.checked = isDefault === true || isDefault === 'true';
+    semesterModalTitle.textContent = '編輯學期';
+    saveSemesterBtn.textContent = '更新紀錄';
+    semesterModalDeleteBtn.classList.remove('hidden');
+    semesterModal.classList.remove('hidden');
+};
+
+saveSemesterBtn.addEventListener('click', async () => {
+    const name = semesterNameInput.value.trim();
+    const sort_order = parseInt(semesterSortInput.value) || 0;
+    const is_default = semesterIsDefault.checked;
+    const uid = semesterEditUid.value;
+    
+    if (!name) return showToast('請填寫學期名稱！', 'error');
+
+    showLoading();
+    try {
+        if (is_default) {
+            await supabaseClient.from('semesters').update({ is_default: false }).neq('uid', uid || 'none');
+        }
+
+        if (uid) {
+            const { error } = await supabaseClient.from('semesters').update({ name, sort_order, is_default }).eq('uid', uid);
+            if (error) {
+                showToast('修改失敗: ' + error.message, 'error');
+            } else { 
+                showToast('修改成功！'); 
+                closeModal('semester-modal'); 
+                await loadSemesters(); 
+                await loadGlobalFinFilters(); 
+            }
+        } else {
+            const { error } = await supabaseClient.from('semesters').insert([{ name, sort_order, is_default }]);
+            if (error) {
+                showToast('新增失敗: ' + error.message, 'error');
+            } else { 
+                showToast('新增成功！'); 
+                closeModal('semester-modal'); 
+                await loadSemesters(); 
+                await loadGlobalFinFilters(); 
+            }
         }
     } finally {
         hideLoading();
@@ -402,6 +634,7 @@ const annCatModalDeleteBtn = document.getElementById('ann-cat-modal-delete-btn')
 const annCatEditUid = document.getElementById('ann-cat-edit-uid');
 const annCatName = document.getElementById('ann-cat-name');
 const annCatColor = document.getElementById('ann-cat-color');
+const annCatIsDefault = document.getElementById('ann-cat-is-default');
 const saveAnnCatBtn = document.getElementById('save-ann-cat-btn');
 
 async function loadAnnouncementCategories() {
@@ -412,15 +645,16 @@ async function loadAnnouncementCategories() {
         if (data && data.length > 0) {
             data.forEach(item => {
                 const colorHex = item.color || '#ccc';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設類別</span>` : '';
                 annCatListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${item.name}</div>
+                            <div class="card-title">${item.name} ${defaultBadge}</div>
                             <div class="card-sub" style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
                                 <span class="color-badge" style="background-color: ${colorHex};"></span><span>${colorHex}</span>
                             </div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditAnnCatModal('${item.uid}', '${item.name}', '${item.color}')" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                        <button class="icon-edit-btn" onclick="openEditAnnCatModal('${item.uid}', '${item.name}', '${item.color}', ${item.is_default})" title="編輯"><i class="fa-solid fa-pen"></i></button>
                     </div>
                 `;
             });
@@ -436,16 +670,18 @@ window.openAddAnnCatModal = function() {
     annCatEditUid.value = '';
     annCatName.value = '';
     annCatColor.value = '#1890ff';
+    annCatIsDefault.checked = false;
     annCatModalTitle.textContent = '新增公告類別';
     saveAnnCatBtn.textContent = '新增紀錄';
     annCatModalDeleteBtn.classList.add('hidden');
     annCatModal.classList.remove('hidden');
 };
 
-window.openEditAnnCatModal = function(uid, name, color) {
+window.openEditAnnCatModal = function(uid, name, color, isDefault) {
     annCatEditUid.value = uid;
     annCatName.value = name;
     annCatColor.value = color || '#1890ff';
+    annCatIsDefault.checked = isDefault === true || isDefault === 'true';
     annCatModalTitle.textContent = '編輯公告類別';
     saveAnnCatBtn.textContent = '更新紀錄';
     annCatModalDeleteBtn.classList.remove('hidden');
@@ -453,19 +689,24 @@ window.openEditAnnCatModal = function(uid, name, color) {
 };
 
 saveAnnCatBtn.addEventListener('click', async () => {
-    const name = annCatName.value;
+    const name = annCatName.value.trim();
     const color = annCatColor.value;
+    const is_default = annCatIsDefault.checked;
     const uid = annCatEditUid.value;
     if (!name) return showToast('請填寫類別名稱！', 'error');
 
     showLoading();
     try {
+        if (is_default) {
+            await supabaseClient.from('announcement_categories').update({ is_default: false }).neq('uid', uid || 'none');
+        }
+
         if (uid) {
-            const { error } = await supabaseClient.from('announcement_categories').update({ name, color }).eq('uid', uid);
+            const { error } = await supabaseClient.from('announcement_categories').update({ name, color, is_default }).eq('uid', uid);
             if (error) showToast('修改失敗: ' + error.message, 'error');
             else { showToast('修改成功！'); closeModal('ann-cat-modal'); await loadAnnouncementCategories(); }
         } else {
-            const { error } = await supabaseClient.from('announcement_categories').insert([{ name, color }]);
+            const { error } = await supabaseClient.from('announcement_categories').insert([{ name, color, is_default }]);
             if (error) showToast('新增失敗: ' + error.message, 'error');
             else { showToast('新增成功！'); closeModal('ann-cat-modal'); await loadAnnouncementCategories(); }
         }
@@ -493,16 +734,25 @@ const saveAnnBtn = document.getElementById('save-ann-btn');
 async function loadAnnouncements() {
     showLoading();
     try {
-        const { data } = await supabaseClient
+        const globalClassSelect = document.getElementById('global-ann-class-select');
+        const selectedClassUid = globalClassSelect ? globalClassSelect.value : '';
+
+        let query = supabaseClient
             .from('announcements')
-            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, class_name, name ), announcement_categories ( name, color )`)
+            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, name ), announcement_categories ( name, color )`)
             .order('is_pinned', { ascending: false })
             .order('created_at', { ascending: false });
+
+        if (selectedClassUid) {
+            query = query.eq('class_uid', selectedClassUid);
+        }
+
+        const { data } = await query;
 
         annListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const classNameText = item.classes ? `${item.classes.academic_year} ${item.classes.class_name} - ${item.classes.name}` : '未指定';
+                const classNameText = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未指定';
                 const catName = item.announcement_categories ? item.announcement_categories.name : '未指定';
                 const catColor = item.announcement_categories ? item.announcement_categories.color : '#64748b';
                 const pinBadge = item.is_pinned ? `<span class="pin-tag">置頂</span>` : '';
@@ -542,24 +792,47 @@ async function loadAnnouncements() {
     }
 }
 
-async function loadAnnOptions() {
+async function loadAnnOptions(defaultClassUid = null, defaultCatUid = null) {
     const { data: classes } = await supabaseClient.from('classes').select('*');
     annClassSelect.innerHTML = '<option value="">-- 請選擇班級 --</option>';
-    if (classes) classes.forEach(c => annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} ${c.class_name} - ${c.name}</option>`);
+    let targetClassUid = defaultClassUid;
+
+    if (classes) {
+        classes.forEach(c => {
+            annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            if (!targetClassUid && c.is_default) {
+                targetClassUid = c.uid;
+            }
+        });
+    }
+    if (targetClassUid) annClassSelect.value = targetClassUid;
 
     const { data: categories } = await supabaseClient.from('announcement_categories').select('*');
     annCatSelect.innerHTML = '<option value="">-- 請選擇公告類別 --</option>';
-    if (categories) categories.forEach(cat => annCatSelect.innerHTML += `<option value="${cat.uid}">${cat.name}</option>`);
+    let targetCatUid = defaultCatUid;
+
+    if (categories) {
+        categories.forEach(cat => {
+            annCatSelect.innerHTML += `<option value="${cat.uid}">${cat.name}</option>`;
+            if (!targetCatUid && cat.is_default) {
+                targetCatUid = cat.uid;
+            }
+        });
+    }
+    if (targetCatUid) annCatSelect.value = targetCatUid;
 }
 
-window.openAddAnnModal = async function() {
+window.openAddAnnModal = async function(preselectedClassUid = null) {
     showLoading();
     try {
-        await loadAnnOptions();
+        const globalClassSelect = document.getElementById('global-ann-class-select');
+        const targetClassUid = preselectedClassUid || (globalClassSelect ? globalClassSelect.value : null);
+
+        await loadAnnOptions(targetClassUid);
         annEditUid.value = ''; annTitle.value = ''; annNote.value = ''; annAttachmentUrl.value = '';
         showImagePreview('ann', '');
-        setTimeDropdownsByPrefix('ann-start', '');
-        setTimeDropdownsByPrefix('ann-end', '');
+        setTimeDropdownsByPrefix('ann-start', '00:00');
+        setTimeDropdownsByPrefix('ann-end', '23:59');
         setCustomDateValue('start', '');
         setCustomDateValue('end', '');
         annIsPinned.checked = false;
@@ -574,16 +847,18 @@ window.openAddAnnModal = async function() {
 window.openEditAnnModal = async function(uid, classUid, catUid, encodedName, encodedNote, encodedAttachmentUrl, startDate, startTime, endDate, endTime, isPinned) {
     showLoading();
     try {
-        await loadAnnOptions();
-        annEditUid.value = uid; annClassSelect.value = classUid; annCatSelect.value = catUid;
+        await loadAnnOptions(classUid !== 'null' ? classUid : null, catUid !== 'null' ? catUid : null);
+        annEditUid.value = uid; 
+        if (classUid !== 'null') annClassSelect.value = classUid;
+        if (catUid !== 'null') annCatSelect.value = catUid;
         annTitle.value = decodeURIComponent(encodedName); 
         annNote.value = decodeURIComponent(encodedNote);
         const attachmentUrl = decodeURIComponent(encodedAttachmentUrl || '');
         annAttachmentUrl.value = attachmentUrl;
         showImagePreview('ann', attachmentUrl);
 
-        setTimeDropdownsByPrefix('ann-start', startTime);
-        setTimeDropdownsByPrefix('ann-end', endTime);
+        setTimeDropdownsByPrefix('ann-start', startTime || '00:00');
+        setTimeDropdownsByPrefix('ann-end', endTime || '23:59');
         setCustomDateValue('start', startDate !== 'null' ? startDate : '');
         setCustomDateValue('end', endDate !== 'null' ? endDate : '');
         annIsPinned.checked = isPinned === 'true' || isPinned === true;
@@ -628,428 +903,344 @@ saveAnnBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 4. 財務類別管理 (financial_categories)
+ * 4. 新版財務管理 - 金額明細與發票紀錄 (financial_records & financial_receipts)
  * =================================================== */
-const finCatList = document.getElementById('fin-cat-list');
-const finCatModal = document.getElementById('fin-cat-modal');
-const finCatModalTitle = document.getElementById('fin-cat-modal-title');
-const finCatModalDeleteBtn = document.getElementById('fin-cat-modal-delete-btn');
-const finCatEditUid = document.getElementById('fin-cat-edit-uid');
-const finCatName = document.getElementById('fin-cat-name');
-const finCatColor = document.getElementById('fin-cat-color');
-const saveFinCatBtn = document.getElementById('save-fin-cat-btn');
 
-async function loadFinancialCategories() {
+// 4.1 載入金額明細清單
+async function loadFinancialRecords() {
     showLoading();
     try {
-        const { data } = await supabaseClient.from('financial_categories').select('*');
-        finCatList.innerHTML = '';
-        if (data && data.length > 0) {
-            data.forEach(item => {
-                const colorHex = item.color || '#faad14';
-                finCatList.innerHTML += `
-                    <div class="custom-card-item">
-                        <div class="card-info">
-                            <div class="card-title">${item.name}</div>
-                            <div class="card-sub" style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-                                <span class="color-badge" style="background-color: ${colorHex};"></span><span>${colorHex}</span>
-                            </div>
-                        </div>
-                        <button class="icon-edit-btn" onclick="openEditFinancialCategoryModal('${item.uid}', '${item.name}', '${item.color}')" title="編輯"><i class="fa-solid fa-pen"></i></button>
-                    </div>
-                `;
-            });
-        } else {
-            finCatList.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無財務類別</div>`;
-        }
-    } finally {
-        hideLoading();
-    }
-}
+        const semesterSelect = document.getElementById('global-fin-semester-select');
+        const classSelect = document.getElementById('global-fin-class-select');
+        const selectedSemesterUid = semesterSelect ? semesterSelect.value : '';
+        const selectedClassUid = classSelect ? classSelect.value : '';
 
-window.openAddFinancialCategoryModal = function() {
-    finCatEditUid.value = '';
-    finCatName.value = '';
-    finCatColor.value = '#faad14';
-    finCatModalTitle.textContent = '新增財務類別';
-    saveFinCatBtn.textContent = '新增紀錄';
-    finCatModalDeleteBtn.classList.add('hidden');
-    finCatModal.classList.remove('hidden');
-};
-
-window.openEditFinancialCategoryModal = function(uid, name, color) {
-    finCatEditUid.value = uid;
-    finCatName.value = name;
-    finCatColor.value = color || '#faad14';
-    finCatModalTitle.textContent = '編輯財務類別';
-    saveFinCatBtn.textContent = '更新紀錄';
-    finCatModalDeleteBtn.classList.remove('hidden');
-    finCatModal.classList.remove('hidden');
-};
-
-saveFinCatBtn.addEventListener('click', async () => {
-    const name = finCatName.value;
-    const color = finCatColor.value;
-    const uid = finCatEditUid.value;
-    if (!name) return showToast('請填寫類別名稱！', 'error');
-
-    showLoading();
-    try {
-        if (uid) {
-            const { error } = await supabaseClient.from('financial_categories').update({ name, color }).eq('uid', uid);
-            if (error) showToast('修改失敗: ' + error.message, 'error');
-            else { showToast('修改成功！'); closeModal('fin-cat-modal'); await loadFinancialCategories(); }
-        } else {
-            const { error } = await supabaseClient.from('financial_categories').insert([{ name, color }]);
-            if (error) showToast('新增失敗: ' + error.message, 'error');
-            else { showToast('新增成功！'); closeModal('fin-cat-modal'); await loadFinancialCategories(); }
-        }
-    } finally {
-        hideLoading();
-    }
-});
-
-/* ===================================================
- * 5. 財務報表主檔與表身整合管理 (financial_reports)
- * =================================================== */
-const finReportList = document.getElementById('fin-report-list');
-const finReportModal = document.getElementById('fin-report-modal');
-const finReportModalTitle = document.getElementById('fin-report-modal-title');
-const finReportModalDeleteBtn = document.getElementById('fin-report-modal-delete-btn');
-const finReportEditUid = document.getElementById('fin-report-edit-uid');
-const finReportName = document.getElementById('fin-report-name');
-const finReportClassSelect = document.getElementById('fin-report-class-select');
-const finReportCatSelect = document.getElementById('fin-report-cat-select');
-const finReportSemesterSelect = document.getElementById('fin-report-semester-select');
-const saveFinReportBtn = document.getElementById('save-fin-report-btn');
-
-// 表身明細相關元素
-const modalDetailsList = document.getElementById('modal-details-list');
-const modalDetailsSummary = document.getElementById('modal-details-summary');
-
-// 明細子彈窗元素
-const detailModal = document.getElementById('detail-modal');
-const detailModalTitle = document.getElementById('detail-modal-title');
-const detailModalDeleteBtn = document.getElementById('detail-modal-delete-btn');
-const modalDetailName = document.getElementById('modal-detail-name');
-const modalDetailType = document.getElementById('modal-detail-type');
-const modalDetailAmount = document.getElementById('modal-detail-amount');
-const modalDetailRemark = document.getElementById('modal-detail-remark');
-const modalDetailReceipt = document.getElementById('modal-detail-receipt');
-const saveDetailItemBtn = document.getElementById('save-detail-item-btn');
-
-async function loadFinancialReports() {
-    showLoading();
-    try {
-        const { data } = await supabaseClient
-            .from('financial_reports')
+        let query = supabaseClient
+            .from('financial_records')
             .select(`
-                uid, name, date, time, class_uid, category_uid, semester_uid,
-                classes ( academic_year, class_name, name ),
-                financial_categories ( name, color ),
+                uid, name, remark, date, amount, type, class_uid, semester_uid,
+                classes ( academic_year, name ),
                 semesters ( name )
             `)
             .order('date', { ascending: false });
 
-        finReportList.innerHTML = '';
+        if (selectedSemesterUid) {
+            query = query.eq('semester_uid', selectedSemesterUid);
+        }
+        if (selectedClassUid) {
+            query = query.eq('class_uid', selectedClassUid);
+        }
+
+        const { data } = await query;
+
+        const recordListEl = document.getElementById('fin-record-list');
+        const summaryEl = document.getElementById('fin-record-summary');
+        recordListEl.innerHTML = '';
+
+        let totalInc = 0, totalExp = 0;
+
         if (data && data.length > 0) {
-            for (let item of data) {
-                const { data: details } = await supabaseClient
-                    .from('financial_report_details')
-                    .select('*')
-                    .eq('report_uid', item.uid);
-                
-                let totalInc = 0, totalExp = 0;
-                if (details) {
-                    details.forEach(d => {
-                        if (Number(d.type) === 1) totalInc += Number(d.amount) || 0;
-                        else if (Number(d.type) === 0) totalExp += Number(d.amount) || 0;
-                    });
-                }
-                const balance = totalInc - totalExp;
-                const balanceColor = balance >= 0 ? '#00b96b' : '#ff4d4f';
-                const balanceDisplay = `${balance >= 0 ? '+' : ''}$${balance.toLocaleString()}`;
+            data.forEach(item => {
+                const isInc = Number(item.type) === 1;
+                const amt = Number(item.amount) || 0;
+                if (isInc) totalInc += amt;
+                else totalExp += amt;
 
-                const classNameText = item.classes ? `${item.classes.academic_year} ${item.classes.class_name} - ${item.classes.name}` : '未指定班級';
-                const catName = item.financial_categories ? item.financial_categories.name : '未指定類別';
-                const catColor = item.financial_categories ? (item.financial_categories.color || '#faad14') : '#faad14';
-                const semesterName = item.semesters ? item.semesters.name : '未指定學期';
-                const dateTimeText = `${item.date || '無日期'} ${item.time || ''}`;
+                const className = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未知班級';
+                const semesterName = item.semesters ? item.semesters.name : '未知學期';
 
-                finReportList.innerHTML += `
+                const badge = isInc 
+                    ? `<span class="type-badge inc">收入</span>`
+                    : `<span class="type-badge exp">支出</span>`;
+
+                recordListEl.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info" style="flex: 1; min-width: 0; padding-right: 15px;">
-                            <div class="card-title">${item.name}</div>
+                            <div class="card-title">${badge} <span>${item.name}</span></div>
                             <div class="card-sub" style="margin-top: 6px; line-height: 1.5;">
-                                <div style="margin-bottom: 4px;">
-                                    <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
-                                </div>
-                                <div style="color: #64748b;">${classNameText} &nbsp;|&nbsp; 學期: ${semesterName}</div>
-                                <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>${dateTimeText}</div>
+                                <div style="color: #64748b;">${className} &nbsp;|&nbsp; ${semesterName}</div>
+                                <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>${item.date || ''}</div>
+                                ${item.remark ? `<div style="color: #64748b; font-size: 12px; margin-top: 2px;">備註: ${item.remark}</div>` : ''}
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 16px; flex-shrink: 0;">
-                            <span style="color: ${balanceColor}; font-weight: bold; font-size: 16px;">${balanceDisplay}</span>
-                            <button class="icon-edit-btn" onclick="openEditFinancialReportModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.date || ''}', '${item.time || ''}', '${item.class_uid || ''}', '${item.category_uid || ''}', '${item.semester_uid || ''}')" title="編輯報表與明細">
+                            <span style="color: ${isInc ? '#00b96b' : '#ff4d4f'}; font-weight: bold; font-size: 16px;">
+                                ${isInc ? '+' : '-'}$${amt.toLocaleString()}
+                            </span>
+                            <button class="icon-edit-btn" onclick="openEditFinRecordModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.amount}', '${item.type}', '${item.date}', '${encodeURIComponent(item.remark || '')}', '${item.class_uid}', '${item.semester_uid}')" title="編輯">
                                 <i class="fa-solid fa-pen"></i>
                             </button>
                         </div>
                     </div>
                 `;
-            }
+            });
         } else {
-            finReportList.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無財務報表</div>`;
+            recordListEl.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無金額明細紀錄</div>`;
         }
+
+        const balance = totalInc - totalExp;
+        summaryEl.innerHTML = `
+            <div>總收入: <span class="inc">+$${totalInc.toLocaleString()}</span></div>
+            <div>總支出: <span class="exp">-$${totalExp.toLocaleString()}</span></div>
+            <div>結餘: <span class="balance" style="color: ${balance >= 0 ? '#00b96b' : '#ff4d4f'}">$${balance.toLocaleString()}</span></div>
+        `;
     } finally {
         hideLoading();
     }
 }
 
-async function loadFinancialReportOptions() {
-    const { data: classes } = await supabaseClient.from('classes').select('*');
-    finReportClassSelect.innerHTML = '<option value="">-- 請選擇班級 --</option>';
-    if (classes) classes.forEach(c => finReportClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} ${c.class_name} - ${c.name}</option>`);
-
-    const { data: categories } = await supabaseClient.from('financial_categories').select('*');
-    finReportCatSelect.innerHTML = '<option value="">-- 請選擇財務類別 --</option>';
-    if (categories) categories.forEach(cat => finReportCatSelect.innerHTML += `<option value="${cat.uid}">${cat.name}</option>`);
-
-    const { data: semesters } = await supabaseClient.from('semesters').select('*');
-    finReportSemesterSelect.innerHTML = '<option value="">-- 請選擇學期 --</option>';
-    if (semesters) semesters.forEach(sem => finReportSemesterSelect.innerHTML += `<option value="${sem.uid}">${sem.name}</option>`);
-}
-
-window.openAddFinancialReportModal = async function() {
+// 4.2 載入發票/收據憑證清單
+async function loadFinancialReceipts() {
     showLoading();
     try {
-        await loadFinancialReportOptions();
-        finReportEditUid.value = ''; 
-        finReportName.value = ''; 
-        finReportSemesterSelect.value = '';
-        setTimeDropdownsByPrefix('fin-report', '');
-        setCustomDateValue('fin-report', '');
-        
-        currentReportDetails = [];
-        renderModalDetailsList();
+        const semesterSelect = document.getElementById('global-fin-semester-select');
+        const classSelect = document.getElementById('global-fin-class-select');
+        const selectedSemesterUid = semesterSelect ? semesterSelect.value : '';
+        const selectedClassUid = classSelect ? classSelect.value : '';
 
-        finReportModalTitle.textContent = '新增財務報表（含明細）'; 
-        saveFinReportBtn.textContent = '確認儲存';
-        finReportModalDeleteBtn.classList.add('hidden'); 
-        finReportModal.classList.remove('hidden');
-    } finally {
-        hideLoading();
-    }
-};
+        let query = supabaseClient
+            .from('financial_receipts')
+            .select(`
+                uid, receipt_url, remark, created_at, class_uid, semester_uid,
+                classes ( academic_year, name ),
+                semesters ( name )
+            `)
+            .order('created_at', { ascending: false });
 
-window.openEditFinancialReportModal = async function(uid, encodedName, date, time, classUid, catUid, semesterUid) {
-    showLoading();
-    try {
-        await loadFinancialReportOptions();
-        finReportEditUid.value = uid;
-        finReportName.value = decodeURIComponent(encodedName);
-        finReportClassSelect.value = classUid !== 'null' ? classUid : '';
-        finReportCatSelect.value = catUid !== 'null' ? catUid : '';
-        finReportSemesterSelect.value = semesterUid !== 'null' ? semesterUid : '';
-        
-        setTimeDropdownsByPrefix('fin-report', time);
-        setCustomDateValue('fin-report', date !== 'null' ? date : '');
+        if (selectedSemesterUid) {
+            query = query.eq('semester_uid', selectedSemesterUid);
+        }
+        if (selectedClassUid) {
+            query = query.eq('class_uid', selectedClassUid);
+        }
 
-        const { data: details } = await supabaseClient
-            .from('financial_report_details')
-            .select('*')
-            .eq('report_uid', uid);
-        
-        currentReportDetails = details ? details.map(d => ({
-            uid: d.uid,
-            name: d.name,
-            type: Number(d.type),
-            amount: d.amount,
-            remark: d.remark || '',
-            receipt_url: d.receipt_url || ''
-        })) : [];
-        renderModalDetailsList();
+        const { data } = await query;
+        const receiptListEl = document.getElementById('fin-receipt-list');
+        receiptListEl.innerHTML = '';
 
-        finReportModalTitle.textContent = '編輯財務報表與明細'; 
-        saveFinReportBtn.textContent = '更新紀錄';
-        finReportModalDeleteBtn.classList.remove('hidden'); 
-        finReportModal.classList.remove('hidden');
-    } finally {
-        hideLoading();
-    }
-};
+        if (data && data.length > 0) {
+            data.forEach(item => {
+                const className = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未知班級';
+                const semesterName = item.semesters ? item.semesters.name : '未知學期';
+                const createdDate = item.created_at ? item.created_at.split('T')[0] : '';
 
-/* --- 明細彈窗操作與邏輯 --- */
-window.openAddDetailModal = function() {
-    activeEditingDetailIndex = -1;
-    modalDetailName.value = '';
-    modalDetailType.value = '0'; // 預設支出
-    modalDetailAmount.value = '';
-    modalDetailRemark.value = '';
-    modalDetailReceipt.value = '';
-    showImagePreview('receipt', '');
-    detailModalTitle.textContent = '新增明細項目';
-    detailModalDeleteBtn.classList.add('hidden');
-    detailModal.classList.remove('hidden');
-};
-
-window.openEditDetailModal = function(index) {
-    activeEditingDetailIndex = index;
-    const item = currentReportDetails[index];
-    modalDetailName.value = item.name || '';
-    modalDetailType.value = String(item.type);
-    modalDetailAmount.value = item.amount || '';
-    modalDetailRemark.value = item.remark || '';
-    modalDetailReceipt.value = item.receipt_url || '';
-    showImagePreview('receipt', item.receipt_url || '');
-    detailModalTitle.textContent = '編輯明細項目';
-    detailModalDeleteBtn.classList.remove('hidden');
-    detailModal.classList.remove('hidden');
-};
-
-window.removeModalDetailItem = function(index) {
-    currentReportDetails.splice(index, 1);
-    renderModalDetailsList();
-};
-
-window.deleteCurrentDetailFromModal = function() {
-    if (activeEditingDetailIndex >= 0) {
-        removeModalDetailItem(activeEditingDetailIndex);
-        closeModal('detail-modal');
-        showToast('明細已刪除');
-    }
-};
-
-saveDetailItemBtn.addEventListener('click', () => {
-    const name = modalDetailName.value.trim();
-    const type = parseInt(modalDetailType.value);
-    const amount = parseFloat(modalDetailAmount.value);
-    const remark = modalDetailRemark.value.trim();
-    const receipt_url = modalDetailReceipt.value.trim();
-
-    if (!name) return showToast('請填寫明細名稱！', 'error');
-    if (isNaN(amount) || amount <= 0) return showToast('請輸入有效金額！', 'error');
-
-    const detailData = { name, type, amount, remark, receipt_url };
-
-    if (activeEditingDetailIndex >= 0) {
-        currentReportDetails[activeEditingDetailIndex] = {
-            ...currentReportDetails[activeEditingDetailIndex],
-            ...detailData
-        };
-        showToast('明細已更新');
-    } else {
-        currentReportDetails.push(detailData);
-        showToast('明細已加入');
-    }
-
-    closeModal('detail-modal');
-    renderModalDetailsList();
-});
-
-function renderModalDetailsList() {
-    modalDetailsList.innerHTML = '';
-    let totalInc = 0, totalExp = 0;
-
-    if (currentReportDetails.length > 0) {
-        currentReportDetails.forEach((item, index) => {
-            const isInc = Number(item.type) === 1;
-            const amt = Number(item.amount) || 0;
-            if (isInc) totalInc += amt;
-            else totalExp += amt;
-
-            const badge = isInc 
-                ? `<span style="background: #e6f4ff; color: #0969da; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">收入</span>`
-                : `<span style="background: #fff1f0; color: #ff4d4f; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">支出</span>`;
-
-            modalDetailsList.innerHTML += `
-                <div class="custom-card-item" style="padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <div class="card-info" style="width: calc(100% - 90px);">
-                        <div class="card-title" style="font-size: 15px; display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
-                            ${badge} <span>${item.name}</span>
+                receiptListEl.innerHTML += `
+                    <div class="custom-card-item">
+                        <div style="display: flex; gap: 14px; align-items: center; width: calc(100% - 45px);">
+                            <a href="${item.receipt_url}" target="_blank" style="flex-shrink: 0;">
+                                <img src="${item.receipt_url}" alt="發票憑證" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;">
+                            </a>
+                            <div class="card-info" style="flex: 1; min-width: 0;">
+                                <div class="card-title">${className}</div>
+                                <div class="card-sub" style="margin-top: 4px; line-height: 1.4;">
+                                    <div>學期: ${semesterName}</div>
+                                    ${item.remark ? `<div style="color: #1e293b; font-weight: 500;">備註: ${item.remark}</div>` : ''}
+                                    <div style="color: #94a3b8; font-size: 11px;">上傳時間: ${createdDate}</div>
+                                </div>
+                            </div>
                         </div>
-                        ${item.remark ? `<div class="card-sub" style="margin-top: 2px;">備註: ${item.remark}</div>` : ''}
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="color: ${isInc ? '#00b96b' : '#ff4d4f'}; font-weight: bold; font-size: 15px; text-align: right; white-space: nowrap;">
-                            ${isInc ? '+' : '-'}$${amt.toLocaleString()}
-                        </span>
-                        <button type="button" class="icon-edit-btn" onclick="openEditDetailModal(${index})" title="編輯明細">
+                        <button class="icon-edit-btn" onclick="openEditFinReceiptModal('${item.uid}', '${encodeURIComponent(item.receipt_url || '')}', '${encodeURIComponent(item.remark || '')}', '${item.class_uid}', '${item.semester_uid}')" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
-                </div>
-            `;
-        });
-    } else {
-        modalDetailsList.innerHTML = `<div style="text-align: center; color: #aaa; padding: 15px; font-size: 13px;">尚未新增任何明細項目（至少需有一筆）</div>`;
+                `;
+            });
+        } else {
+            receiptListEl.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無發票與收據憑證</div>`;
+        }
+    } finally {
+        hideLoading();
     }
-
-    const balance = totalInc - totalExp;
-    modalDetailsSummary.innerHTML = `
-        總收入: <span style="color: #00b96b; font-weight: bold;">+$${totalInc.toLocaleString()}</span> | 
-        總支出: <span style="color: #ff4d4f; font-weight: bold;">-$${totalExp.toLocaleString()}</span> | 
-        結餘: <span style="color: #0969da; font-weight: bold;">$${balance.toLocaleString()}</span>
-    `;
 }
 
-// 儲存表頭與表身
-saveFinReportBtn.addEventListener('click', async () => {
-    const name = finReportName.value.trim();
-    const class_uid = finReportClassSelect.value;
-    const category_uid = finReportCatSelect.value;
-    const semester_uid = finReportSemesterSelect.value;
-    const date = document.getElementById('fin-report-date').value;
-    const time = getTimeFromDropdownsByPrefix('fin-report');
-    const uid = finReportEditUid.value;
+// 內部共用：填入 Modal 中的班級與學期下拉選項
+async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
+    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
 
-    if (!name) return showToast('請填寫報表名稱！', 'error');
-    if (!class_uid) return showToast('請選擇班級！', 'error');
-    if (!category_uid) return showToast('請選擇財務類別！', 'error');
-    if (!semester_uid) return showToast('請選擇學期！', 'error');
-    if (!date) return showToast('請選擇報表日期！', 'error');
-    if (!time) return showToast('請選擇報表時間！', 'error');
-    
-    if (currentReportDetails.length === 0) {
-        return showToast('財務報表必須包含至少一筆明細資料（表身），不可空白存檔！', 'error');
+    let defaultClassUid = '';
+    if (classes) {
+        classes.forEach(c => { if (c.is_default) defaultClassUid = c.uid; });
     }
+
+    let defaultSemesterUid = '';
+    if (semesters) {
+        semesters.forEach(s => { if (s.is_default) defaultSemesterUid = s.uid; });
+    }
+
+    const finalClassUid = targetClassUid || defaultClassUid || (classes && classes.length > 0 ? classes[0].uid : '');
+    const finalSemesterUid = targetSemesterUid || defaultSemesterUid || (semesters && semesters.length > 0 ? semesters[0].uid : '');
+
+    const cSelects = [document.getElementById('fin-record-class-select'), document.getElementById('fin-receipt-class-select')];
+    const sSelects = [document.getElementById('fin-record-semester-select'), document.getElementById('fin-receipt-semester-select')];
+
+    cSelects.forEach(sel => {
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- 請選擇班級 --</option>';
+        if (classes) {
+            classes.forEach(c => {
+                sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            });
+        }
+        sel.value = finalClassUid;
+    });
+
+    sSelects.forEach(sel => {
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- 請選擇學期 --</option>';
+        if (semesters) {
+            semesters.forEach(s => {
+                sel.innerHTML += `<option value="${s.uid}">${s.name}</option>`;
+            });
+        }
+        sel.value = finalSemesterUid;
+    });
+}
+
+// 直接開啟金額明細新增 Modal
+window.openDirectAddFinRecord = async function(classUid, semesterUid) {
+    showLoading();
+    try {
+        await populateFinModalDropdowns(classUid, semesterUid);
+        
+        document.getElementById('fin-record-edit-uid').value = '';
+        document.getElementById('fin-record-name').value = '';
+        document.getElementById('fin-record-type').value = '0';
+        document.getElementById('fin-record-amount').value = '';
+        document.getElementById('fin-record-remark').value = '';
+        
+        const today = new Date().toISOString().split('T')[0];
+        setCustomDateValue('fin-record', today);
+
+        document.getElementById('fin-record-modal-title').textContent = '新增金額明細';
+        document.getElementById('save-fin-record-btn').textContent = '確認儲存';
+        document.getElementById('fin-record-modal-delete-btn').classList.add('hidden');
+        document.getElementById('fin-record-modal').classList.remove('hidden');
+    } finally {
+        hideLoading();
+    }
+};
+
+// 直接開啟發票憑證新增 Modal
+window.openDirectAddFinReceiptModal = async function(classUid, semesterUid) {
+    showLoading();
+    try {
+        await populateFinModalDropdowns(classUid, semesterUid);
+
+        document.getElementById('fin-receipt-edit-uid').value = '';
+        document.getElementById('fin-receipt-url').value = '';
+        document.getElementById('fin-receipt-remark').value = '';
+        showImagePreview('fin-rcp', '');
+
+        document.getElementById('fin-receipt-modal-title').textContent = '上傳發票與收據憑證';
+        document.getElementById('save-fin-receipt-btn').textContent = '確認儲存';
+        document.getElementById('fin-receipt-modal-delete-btn').classList.add('hidden');
+        document.getElementById('fin-receipt-modal').classList.remove('hidden');
+    } finally {
+        hideLoading();
+    }
+};
+
+// 4.4 編輯金額紀錄
+window.openEditFinRecordModal = async function(uid, encodedName, amount, type, date, encodedRemark, classUid, semesterUid) {
+    showLoading();
+    try {
+        await populateFinModalDropdowns(classUid, semesterUid);
+
+        document.getElementById('fin-record-edit-uid').value = uid;
+        document.getElementById('fin-record-name').value = decodeURIComponent(encodedName);
+        document.getElementById('fin-record-type').value = String(type);
+        document.getElementById('fin-record-amount').value = amount;
+        document.getElementById('fin-record-remark').value = decodeURIComponent(encodedRemark);
+        setCustomDateValue('fin-record', date || '');
+
+        document.getElementById('fin-record-modal-title').textContent = '編輯金額明細';
+        document.getElementById('save-fin-record-btn').textContent = '更新紀錄';
+        document.getElementById('fin-record-modal-delete-btn').classList.remove('hidden');
+        document.getElementById('fin-record-modal').classList.remove('hidden');
+    } finally {
+        hideLoading();
+    }
+};
+
+// 4.5 編輯發票紀錄
+window.openEditFinReceiptModal = async function(uid, encodedUrl, encodedRemark, classUid, semesterUid) {
+    showLoading();
+    try {
+        await populateFinModalDropdowns(classUid, semesterUid);
+
+        const url = decodeURIComponent(encodedUrl);
+        document.getElementById('fin-receipt-edit-uid').value = uid;
+        document.getElementById('fin-receipt-url').value = url;
+        document.getElementById('fin-receipt-remark').value = decodeURIComponent(encodedRemark);
+        showImagePreview('fin-rcp', url);
+
+        document.getElementById('fin-receipt-modal-title').textContent = '編輯發票憑證';
+        document.getElementById('save-fin-receipt-btn').textContent = '更新紀錄';
+        document.getElementById('fin-receipt-modal-delete-btn').classList.remove('hidden');
+        document.getElementById('fin-receipt-modal').classList.remove('hidden');
+    } finally {
+        hideLoading();
+    }
+};
+
+// 儲存金額紀錄 (新增/修改)
+document.getElementById('save-fin-record-btn').addEventListener('click', async () => {
+    const uid = document.getElementById('fin-record-edit-uid').value;
+    const class_uid = document.getElementById('fin-record-class-select').value;
+    const semester_uid = document.getElementById('fin-record-semester-select').value;
+    const name = document.getElementById('fin-record-name').value.trim();
+    const type = parseInt(document.getElementById('fin-record-type').value);
+    const amount = parseFloat(document.getElementById('fin-record-amount').value);
+    const date = document.getElementById('fin-record-date').value;
+    const remark = document.getElementById('fin-record-remark').value.trim();
+
+    if (!class_uid) return showToast('請選擇班級！', 'error');
+    if (!semester_uid) return showToast('請選擇學期！', 'error');
+    if (!name) return showToast('請填寫項目名稱！', 'error');
+    if (isNaN(amount) || amount <= 0) return showToast('請填寫有效金額！', 'error');
+    if (!date) return showToast('請選擇發生日期！', 'error');
 
     showLoading();
     try {
-        const payload = { name, class_uid, category_uid, semester_uid, date, time };
-        let reportUid = uid;
-
-        if (reportUid) {
-            const { error } = await supabaseClient.from('financial_reports').update(payload).eq('uid', reportUid);
-            if (error) {
-                showToast('修改主檔失敗: ' + error.message, 'error');
-                return;
-            }
-            await supabaseClient.from('financial_report_details').delete().eq('report_uid', reportUid);
+        const payload = { name, type, amount, date, remark, class_uid, semester_uid };
+        if (uid) {
+            const { error } = await supabaseClient.from('financial_records').update(payload).eq('uid', uid);
+            if (error) showToast('修改失敗: ' + error.message, 'error');
+            else { showToast('修改成功！'); closeModal('fin-record-modal'); await loadFinancialRecords(); }
         } else {
-            const { data: newRep, error } = await supabaseClient.from('financial_reports').insert([payload]).select().single();
-            if (error) {
-                showToast('新增主檔失敗: ' + error.message, 'error');
-                return;
-            }
-            reportUid = newRep.uid;
+            const { error } = await supabaseClient.from('financial_records').insert([payload]);
+            if (error) showToast('新增失敗: ' + error.message, 'error');
+            else { showToast('新增成功！'); closeModal('fin-record-modal'); await loadFinancialRecords(); }
         }
+    } finally {
+        hideLoading();
+    }
+});
 
-        const detailsPayload = currentReportDetails.map(d => ({
-            report_uid: reportUid,
-            name: d.name,
-            type: d.type,
-            amount: d.amount,
-            remark: d.remark || null,
-            receipt_url: d.receipt_url || null
-        }));
+// 儲存發票紀錄 (新增/修改)
+document.getElementById('save-fin-receipt-btn').addEventListener('click', async () => {
+    const uid = document.getElementById('fin-receipt-edit-uid').value;
+    const class_uid = document.getElementById('fin-receipt-class-select').value;
+    const semester_uid = document.getElementById('fin-receipt-semester-select').value;
+    const receipt_url = document.getElementById('fin-receipt-url').value.trim();
+    const remark = document.getElementById('fin-receipt-remark').value.trim();
 
-        const { error: detailError } = await supabaseClient.from('financial_report_details').insert(detailsPayload);
-        if (detailError) {
-            showToast('明細儲存失敗: ' + detailError.message, 'error');
+    if (!class_uid) return showToast('請選擇班級！', 'error');
+    if (!semester_uid) return showToast('請選擇學期！', 'error');
+    if (!receipt_url) return showToast('請先上傳發票/收據圖片！', 'error');
+
+    showLoading();
+    try {
+        const payload = { receipt_url, remark, class_uid, semester_uid };
+        if (uid) {
+            const { error } = await supabaseClient.from('financial_receipts').update(payload).eq('uid', uid);
+            if (error) showToast('修改失敗: ' + error.message, 'error');
+            else { showToast('修改成功！'); closeModal('fin-receipt-modal'); await loadFinancialReceipts(); }
         } else {
-            showToast('財務報表與明細儲存成功！');
-            closeModal('fin-report-modal');
-            await loadFinancialReports();
+            const { error } = await supabaseClient.from('financial_receipts').insert([payload]);
+            if (error) showToast('新增失敗: ' + error.message, 'error');
+            else { showToast('新增成功！'); closeModal('fin-receipt-modal'); await loadFinancialReceipts(); }
         }
     } finally {
         hideLoading();
@@ -1061,7 +1252,7 @@ saveFinReportBtn.addEventListener('click', async () => {
  * =================================================== */
 let activeTargetType = null; 
 let modalDPState = { year: 2026, month: 9 }; 
-let selectedDates = { start: '', end: '', 'fin-report': '' };
+let selectedDates = { start: '', end: '', 'fin-record': '' };
 
 window.openModalDatePicker = function(type) {
     activeTargetType = type;
@@ -1138,9 +1329,9 @@ function setCustomDateValue(type, val) {
     if (type === 'start' || type === 'end') {
         inputEl = document.getElementById(`ann-${type}-date`);
         displayEl = document.getElementById(`${type}-date-display`);
-    } else if (type === 'fin-report') {
-        inputEl = document.getElementById('fin-report-date');
-        displayEl = document.getElementById('fin-report-date-display');
+    } else if (type === 'fin-record') {
+        inputEl = document.getElementById('fin-record-date');
+        displayEl = document.getElementById('fin-record-date-display');
     }
 
     if (inputEl) inputEl.value = val;
@@ -1176,7 +1367,23 @@ window.executeDelete = async function() {
             const uid = classEditUid.value;
             const { error } = await supabaseClient.from('classes').delete().eq('uid', uid);
             if (error) showToast('刪除失敗', 'error');
-            else { showToast('刪除成功！'); closeModal('class-modal'); await loadClasses(); }
+            else { 
+                showToast('刪除成功！'); 
+                closeModal('class-modal'); 
+                await loadClasses(); 
+                await loadGlobalAnnClasses();
+                await loadGlobalFinFilters();
+            }
+        } else if (currentDeleteType === 'semester') {
+            const uid = semesterEditUid.value;
+            const { error } = await supabaseClient.from('semesters').delete().eq('uid', uid);
+            if (error) showToast('刪除失敗', 'error');
+            else { 
+                showToast('刪除成功！'); 
+                closeModal('semester-modal'); 
+                await loadSemesters(); 
+                await loadGlobalFinFilters();
+            }
         } else if (currentDeleteType === 'ann-cat') {
             const uid = annCatEditUid.value;
             const { error } = await supabaseClient.from('announcement_categories').delete().eq('uid', uid);
@@ -1184,20 +1391,49 @@ window.executeDelete = async function() {
             else { showToast('刪除成功！'); closeModal('ann-cat-modal'); await loadAnnouncementCategories(); }
         } else if (currentDeleteType === 'ann') {
             const uid = annEditUid.value;
+            
+            const { data: annData } = await supabaseClient.from('announcements').select('attachment_url').eq('uid', uid).single();
+            if (annData && annData.attachment_url) {
+                try {
+                    const urlObj = new URL(annData.attachment_url);
+                    const pathParts = urlObj.pathname.split(`/${BUCKET_NAME}/`);
+                    if (pathParts.length > 1) {
+                        const filePath = decodeURIComponent(pathParts[1]);
+                        await supabaseClient.storage.from(BUCKET_NAME).remove([filePath]);
+                    }
+                } catch (e) {
+                    console.error('刪除 Storage 圖檔失敗:', e);
+                }
+            }
+
             const { error } = await supabaseClient.from('announcements').delete().eq('uid', uid);
             if (error) showToast('刪除失敗', 'error');
             else { showToast('刪除成功！'); closeModal('ann-modal'); await loadAnnouncements(); }
-        } else if (currentDeleteType === 'fin-cat') {
-            const uid = finCatEditUid.value;
-            const { error } = await supabaseClient.from('financial_categories').delete().eq('uid', uid);
+        } else if (currentDeleteType === 'fin-record') {
+            const uid = document.getElementById('fin-record-edit-uid').value;
+            const { error } = await supabaseClient.from('financial_records').delete().eq('uid', uid);
             if (error) showToast('刪除失敗', 'error');
-            else { showToast('刪除成功！'); closeModal('fin-cat-modal'); await loadFinancialCategories(); }
-        } else if (currentDeleteType === 'fin-report') {
-            const uid = finReportEditUid.value;
-            await supabaseClient.from('financial_report_details').delete().eq('report_uid', uid);
-            const { error } = await supabaseClient.from('financial_reports').delete().eq('uid', uid);
+            else { showToast('刪除成功！'); closeModal('fin-record-modal'); await loadFinancialRecords(); }
+        } else if (currentDeleteType === 'fin-receipt') {
+            const uid = document.getElementById('fin-receipt-edit-uid').value;
+            const url = document.getElementById('fin-receipt-url').value;
+
+            if (url) {
+                try {
+                    const urlObj = new URL(url);
+                    const pathParts = urlObj.pathname.split(`/${BUCKET_NAME}/`);
+                    if (pathParts.length > 1) {
+                        const filePath = decodeURIComponent(pathParts[1]);
+                        await supabaseClient.storage.from(BUCKET_NAME).remove([filePath]);
+                    }
+                } catch (e) {
+                    console.error('刪除 Storage 發票圖檔失敗:', e);
+                }
+            }
+
+            const { error } = await supabaseClient.from('financial_receipts').delete().eq('uid', uid);
             if (error) showToast('刪除失敗', 'error');
-            else { showToast('刪除成功！'); closeModal('fin-report-modal'); await loadFinancialReports(); }
+            else { showToast('刪除成功！'); closeModal('fin-receipt-modal'); await loadFinancialReceipts(); }
         }
     } finally {
         hideLoading();
