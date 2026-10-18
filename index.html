@@ -65,6 +65,16 @@
         <h2 style="margin-bottom: 10px; color: #1e293b;">404 - 找不到網頁</h2>
     </div>
 
+    <!-- 圖片大圖預覽 Modal -->
+    <div id="image-preview-modal" class="modal-overlay hidden" onclick="closeImagePreviewModal()">
+        <div class="image-preview-card" onclick="event.stopPropagation()">
+            <button type="button" class="dp-x-btn image-preview-close-btn" onclick="closeImagePreviewModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="image-preview-modal-img" src="" alt="圖片大圖預覽">
+        </div>
+    </div>
+
     <script>
         const SUPABASE_URL = 'https://otiyidlbqhypwqoafbgi.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_-QXTZjRq3Gsh4gOa1sUeHA_ahrsoFFe';
@@ -117,6 +127,38 @@
             await loadAnnouncements();
         }
 
+        // 取得目前 UTC+8 的 Date 物件
+        function getNowUTC8() {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            return new Date(utc + (3600000 * 8));
+        }
+
+        // 檢查公告是否在開始與結束顯示區間內 (UTC+8)
+        function isWithinDisplayRange(startDate, startTime, endDate, endTime) {
+            const nowUTC8 = getNowUTC8();
+
+            // 檢查開始區間
+            if (startDate && startDate !== 'null') {
+                const startStr = `${startDate} ${startTime && startTime !== 'null' ? startTime : '00:00'}`;
+                const startDateTime = new Date(startStr.replace(/-/g, '/'));
+                if (nowUTC8 < startDateTime) {
+                    return false; // 還沒到開始時間
+                }
+            }
+
+            // 檢查結束區間
+            if (endDate && endDate !== 'null') {
+                const endStr = `${endDate} ${endTime && endTime !== 'null' ? endTime : '23:59'}`;
+                const endDateTime = new Date(endStr.replace(/-/g, '/'));
+                if (nowUTC8 > endDateTime) {
+                    return false; // 已經超過結束時間
+                }
+            }
+
+            return true;
+        }
+
         // 載入公告列表
         async function loadAnnouncements() {
             const listEl = document.getElementById('parent-ann-list');
@@ -124,27 +166,51 @@
             
             const { data } = await supabaseClient
                 .from('announcements')
-                .select(`uid, name, note, attachment_url, is_pinned, announcement_categories ( name, color )`)
+                .select(`uid, name, note, attachment_url, is_pinned, start_date, start_time, end_date, end_time, announcement_categories ( name, color )`)
                 .eq('class_uid', CLASS_UID)
                 .order('is_pinned', { ascending: false })
                 .order('created_at', { ascending: false });
 
             listEl.innerHTML = '';
             if (data && data.length > 0) {
-                data.forEach(item => {
+                // 過濾符合 UTC+8 顯示區間的公告
+                const filteredData = data.filter(item => {
+                    return isWithinDisplayRange(item.start_date, item.start_time, item.end_date, item.end_time);
+                });
+
+                if (filteredData.length === 0) {
+                    listEl.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無符合顯示區間的公告資料</div>`;
+                    return;
+                }
+
+                filteredData.forEach(item => {
                     const catName = item.announcement_categories ? item.announcement_categories.name : '一般';
                     const catColor = item.announcement_categories ? item.announcement_categories.color : '#64748b';
                     const pinBadge = item.is_pinned ? `<span class="pin-tag">置頂</span>` : '';
-                    let imgHtml = item.attachment_url ? `<div style="margin-top:8px;"><a href="${item.attachment_url}" target="_blank"><img src="${item.attachment_url}" style="max-height:150px; border-radius:6px; border:1px solid #ddd;"></a></div>` : '';
+                    
+                    // 圖片固定在最左邊（與發票憑證樣式一模一樣）
+                    let imgHtml = item.attachment_url ? `
+                        <div style="flex-shrink: 0; cursor: pointer;" onclick="openImagePreviewModal('${item.attachment_url}')">
+                            <img src="${item.attachment_url}" alt="公告圖片" style="width: 70px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;">
+                        </div>
+                    ` : '';
 
                     listEl.innerHTML += `
-                        <div class="custom-card-item" style="flex-direction: column; align-items: stretch;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div class="card-title">${pinBadge}${item.name}</div>
-                                <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
+                        <div class="custom-card-item" style="flex-direction: row; align-items: flex-start; justify-content: flex-start;">
+                            <div style="display: flex; gap: 14px; align-items: flex-start; width: 100%;">
+                                ${imgHtml}
+                                <div class="card-info" style="flex: 1; min-width: 0;">
+                                    <!-- 第一行：置頂與類別標籤 -->
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                        ${pinBadge}
+                                        <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
+                                    </div>
+                                    <!-- 第二行：標題 -->
+                                    <div class="card-title" style="font-size: 16px; font-weight: bold; color: #1e293b; margin-bottom: 4px;">${item.name}</div>
+                                    <!-- 第三行：公告內容 -->
+                                    <div class="card-sub" style="white-space: pre-wrap; color: #333; line-height: 1.5;">${item.note || ''}</div>
+                                </div>
                             </div>
-                            <div class="card-sub" style="margin-top: 8px; white-space: pre-wrap; color: #333;">${item.note || ''}</div>
-                            ${imgHtml}
                         </div>
                     `;
                 });
@@ -170,7 +236,12 @@
         async function loadFinancialData() {
             const semUid = document.getElementById('semester-select').value;
             
-            let query = supabaseClient.from('financial_records').select(`uid, name, remark, date, amount, type`).eq('class_uid', CLASS_UID).order('created_at', { ascending: false });
+            let query = supabaseClient.from('financial_records').select(`
+                uid, name, remark, date, amount, type,
+                classes ( academic_year, name ),
+                semesters ( name )
+            `).eq('class_uid', CLASS_UID).order('created_at', { ascending: false });
+            
             if (semUid) query = query.eq('semester_uid', semUid);
             const { data: records } = await query;
 
@@ -191,12 +262,17 @@
                     const amt = Number(item.amount) || 0;
                     if (isInc) curInc += amt; else curExp += amt;
                     const badge = isInc ? `<span class="type-badge inc">收入</span>` : `<span class="type-badge exp">支出</span>`;
+                    const semesterName = item.semesters ? item.semesters.name : '未知學期';
 
                     recListEl.innerHTML += `
                         <div class="custom-card-item">
                             <div class="card-info" style="flex:1;">
                                 <div class="card-title">${badge} <span>${item.name}</span></div>
-                                <div class="card-sub" style="margin-top: 4px;">日期: ${item.date || ''} ${item.remark ? '| 備註: ' + item.remark : ''}</div>
+                                <div class="card-sub" style="margin-top: 4px; line-height: 1.5;">
+                                    <div style="color: #64748b;">學期: ${semesterName}</div>
+                                    <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>發生日期: ${item.date || ''}</div>
+                                    ${item.remark ? `<div style="color: #64748b; font-size: 12px; margin-top: 2px;">備註: ${item.remark}</div>` : ''}
+                                </div>
                             </div>
                             <div style="color: ${isInc ? '#00b96b' : '#ff4d4f'}; font-weight: bold; font-size: 16px;">
                                 ${isInc ? '+' : '-'}$${amt.toLocaleString()}
@@ -217,7 +293,11 @@
                 <div class="summary-item"><span class="summary-label">總餘:</span><span class="total-balance" style="color: ${totalBalance >= 0 ? '#00b96b' : '#ff4d4f'}">$${totalBalance.toLocaleString()}</span></div>
             `;
 
-            let rcpQuery = supabaseClient.from('financial_receipts').select(`uid, receipt_url, remark`).eq('class_uid', CLASS_UID).order('created_at', { ascending: false });
+            let rcpQuery = supabaseClient.from('financial_receipts').select(`
+                uid, receipt_url, remark,
+                semesters ( name )
+            `).eq('class_uid', CLASS_UID).order('created_at', { ascending: false });
+            
             if (semUid) rcpQuery = rcpQuery.eq('semester_uid', semUid);
             const { data: receipts } = await rcpQuery;
 
@@ -225,15 +305,19 @@
             rcpListEl.innerHTML = '';
             if (receipts && receipts.length > 0) {
                 receipts.forEach(item => {
+                    const semesterName = item.semesters ? item.semesters.name : '未知學期';
+
                     rcpListEl.innerHTML += `
                         <div class="custom-card-item">
-                            <div style="display: flex; gap: 14px; align-items: center;">
-                                <a href="${item.receipt_url}" target="_blank">
-                                    <img src="${item.receipt_url}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;">
-                                </a>
-                                <div class="card-info">
-                                    <div class="card-title">憑證收據</div>
-                                    <div class="card-sub">${item.remark ? '備註: ' + item.remark : '無備註'}</div>
+                            <div style="display: flex; gap: 14px; align-items: center; width: 100%;">
+                                <div style="flex-shrink: 0; cursor: pointer;" onclick="openImagePreviewModal('${item.receipt_url}')">
+                                    <img src="${item.receipt_url}" alt="發票憑證" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;">
+                                </div>
+                                <div class="card-info" style="flex: 1; min-width: 0;">
+                                    <div class="card-sub" style="margin-top: 4px; line-height: 1.4;">
+                                        <div>學期: ${semesterName}</div>
+                                        ${item.remark ? `<div style="color: #1e293b; font-weight: 500;">備註: ${item.remark}</div>` : ''}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -242,6 +326,24 @@
             } else {
                 rcpListEl.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無憑證收據</div>`;
             }
+        }
+
+        // 大圖燈箱控制邏輯
+        function openImagePreviewModal(url) {
+            if (!url) return;
+            const modal = document.getElementById('image-preview-modal');
+            const img = document.getElementById('image-preview-modal-img');
+            if (modal && img) {
+                img.src = url;
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeImagePreviewModal() {
+            const modal = document.getElementById('image-preview-modal');
+            const img = document.getElementById('image-preview-modal-img');
+            if (modal) modal.classList.add('hidden');
+            if (img) img.src = '';
         }
 
         // 頁面載入時執行檢查

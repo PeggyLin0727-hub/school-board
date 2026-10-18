@@ -468,7 +468,6 @@ window.openAddClassModal = function() {
     saveClassBtn.textContent = '新增';
     classModalDeleteBtn.classList.add('hidden');
     
-    // 新增時隱藏 QR Code 區塊
     document.getElementById('class-qrcode-section').classList.add('hidden');
     
     classModal.classList.remove('hidden');
@@ -483,11 +482,9 @@ window.openEditClassModal = function(uid, year, name, isDefault) {
     saveClassBtn.textContent = '更新';
     classModalDeleteBtn.classList.remove('hidden');
 
-    // 組合家長專用網址
     const parentUrl = `https://peggylin0727-hub.github.io/school-board/?uid=${uid}`;
     document.getElementById('class-parent-url-text').textContent = parentUrl;
 
-    // 清空並重新生成 QR Code
     const qrcodeContainer = document.getElementById('qrcode-container');
     qrcodeContainer.innerHTML = '';
     new QRCode(qrcodeContainer, {
@@ -499,13 +496,11 @@ window.openEditClassModal = function(uid, year, name, isDefault) {
         correctLevel: QRCode.CorrectLevel.H
     });
 
-    // 顯示 QR Code 區塊
     document.getElementById('class-qrcode-section').classList.remove('hidden');
 
     classModal.classList.remove('hidden');
 };
 
-// 一鍵複製網址功能
 window.copyParentUrl = function() {
     const urlText = document.getElementById('class-parent-url-text').textContent;
     navigator.clipboard.writeText(urlText).then(() => {
@@ -809,14 +804,19 @@ async function loadAnnouncements() {
                 else if (!hasStart && hasEnd) timeRangeText = `到 ${item.end_date}${endTimeStr} 為止`;
                 else timeRangeText = `${item.start_date}${startTimeStr} ~ ${item.end_date}${endTimeStr}`;
                 
+                // 這裡已將類別移至第一行，標題移至第二行
                 annListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info" style="width: calc(100% - 45px);">
-                            <div class="card-title">${pinBadge}${item.name}</div>
+                            <!-- 第一行：置頂與類別標籤 -->
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                ${pinBadge}
+                                <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
+                            </div>
+                            <!-- 第二行：公告標題 -->
+                            <div class="card-title" style="font-size: 16px; font-weight: bold; color: #1e293b; margin-bottom: 4px;">${item.name}</div>
+                            <!-- 第三行：班級與時間資訊 -->
                             <div class="card-sub" style="margin-top: 6px; line-height: 1.5;">
-                                <div style="margin-bottom: 4px;">
-                                    <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
-                                </div>
                                 <div style="color: #64748b;">${classNameText}</div>
                                 <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-clock" style="margin-right: 4px;"></i>${timeRangeText}</div>
                             </div>
@@ -1020,7 +1020,7 @@ async function loadFinancialRecords() {
                             <div class="card-title">${badge} <span>${item.name}</span></div>
                             <div class="card-sub" style="margin-top: 6px; line-height: 1.5;">
                                 <div style="color: #64748b;">${className} &nbsp;|&nbsp; ${semesterName}</div>
-                                <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>發生日期: ${item.date || ''}</div>
+                                <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>日期: ${item.date || ''}</div>
                                 ${item.remark ? `<div style="color: #64748b; font-size: 12px; margin-top: 2px;">備註: ${item.remark}</div>` : ''}
                             </div>
                         </div>
@@ -1084,9 +1084,9 @@ async function loadFinancialReceipts() {
                 receiptListEl.innerHTML += `
                     <div class="custom-card-item">
                         <div style="display: flex; gap: 14px; align-items: center; width: calc(100% - 45px);">
-                            <a href="${item.receipt_url}" target="_blank" style="flex-shrink: 0;">
+                            <div style="flex-shrink: 0; cursor: pointer;" onclick="openImagePreviewModal('${item.receipt_url}')">
                                 <img src="${item.receipt_url}" alt="發票憑證" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;">
-                            </a>
+                            </div>
                             <div class="card-info" style="flex: 1; min-width: 0;">
                                 <div class="card-title">${className}</div>
                                 <div class="card-sub" style="margin-top: 4px; line-height: 1.4;">
@@ -1233,7 +1233,7 @@ document.getElementById('save-fin-record-btn').addEventListener('click', async (
     if (!semester_uid) return showToast('請選擇學期！', 'error');
     if (!name) return showToast('請填寫項目名稱！', 'error');
     if (isNaN(amount) || amount <= 0) return showToast('請填寫有效金額！', 'error');
-    if (!date) return showToast('請選擇發生日期！', 'error');
+    if (!date) return showToast('請選擇日期！', 'error');
 
     showLoading();
     try {
@@ -1471,6 +1471,30 @@ window.executeDelete = async function() {
     } finally {
         hideLoading();
         closeConfirmDeleteModal();
+    }
+};
+
+/* ===================================================
+ * 8. 圖片大圖彈窗 (Image Preview Modal) 邏輯
+ * =================================================== */
+window.openImagePreviewModal = function(url) {
+    if (!url) return;
+    const modal = document.getElementById('image-preview-modal');
+    const img = document.getElementById('image-preview-modal-img');
+    if (modal && img) {
+        img.src = url;
+        modal.classList.remove('hidden');
+    }
+};
+
+window.closeImagePreviewModal = function() {
+    const modal = document.getElementById('image-preview-modal');
+    const img = document.getElementById('image-preview-modal-img');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (img) {
+        img.src = '';
     }
 };
 

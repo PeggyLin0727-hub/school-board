@@ -353,7 +353,7 @@
                 </div>
             </div>
 
-            <label>發生日期 <span style="color:red;">*</span></label>
+            <label>日期 <span style="color:red;">*</span></label>
             <div id="fin-record-date-trigger" class="custom-date-trigger" onclick="openModalDatePicker('fin-record')">
                 <span id="fin-record-date-display" class="placeholder">年 / 月 / 日</span>
                 <i class="fa-regular fa-calendar" style="color: #0969da;"></i>
@@ -462,6 +462,16 @@
                 <button class="btn-secondary" onclick="closeConfirmDeleteModal()">取消</button>
                 <button class="btn-danger-confirm" onclick="executeDelete()">確定刪除</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 8. 圖片預覽 Modal (發票憑證大圖彈窗) -->
+    <div id="image-preview-modal" class="modal-overlay hidden" onclick="closeImagePreviewModal()">
+        <div class="image-preview-card" onclick="event.stopPropagation()">
+            <button type="button" class="dp-x-btn image-preview-close-btn" onclick="closeImagePreviewModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="image-preview-modal-img" src="" alt="發票憑證大圖">
         </div>
     </div>
 
