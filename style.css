@@ -47,12 +47,29 @@ button { background-color: #00b96b; color: white; border: none; font-weight: bol
 
 /* 財務統計資訊盒 */
 .fin-summary-box {
-    display: flex; justify-content: space-around; background: #ffffff; border: 1px solid #e2e8f0;
-    padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-weight: bold; font-size: 14px; color: #475569;
+    display: flex; 
+    flex-wrap: wrap;
+    justify-content: space-around; 
+    align-items: center;
+    background: #ffffff; 
+    border: 1px solid #e2e8f0;
+    padding: 12px 16px; 
+    border-radius: 10px; 
+    margin-bottom: 16px; 
+    font-weight: bold; 
+    font-size: 14px; 
+    color: #475569;
+    gap: 12px;
+}
+.fin-summary-box .summary-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .fin-summary-box .inc { color: #00b96b; }
 .fin-summary-box .exp { color: #ff4d4f; }
 .fin-summary-box .balance { color: #0969da; }
+.fin-summary-box .total-balance { color: #722ed1; }
 
 /* 唯讀班級與學期顯示區塊 */
 .readonly-badge-box {
@@ -60,19 +77,6 @@ button { background-color: #00b96b; color: white; border: none; font-weight: bol
     margin-bottom: 16px; display: flex; justify-content: space-between; font-size: 14px; color: #475569; font-weight: bold;
 }
 .readonly-badge-box .highlight-text { color: #0969da; }
-
-/* 分流選項按鈕 */
-.fin-branch-container {
-    display: flex; gap: 12px; margin-top: 14px;
-}
-.fin-branch-btn {
-    flex: 1; padding: 16px 12px; border-radius: 10px; border: 2px solid #e2e8f0;
-    background: #ffffff; cursor: pointer; text-align: center; transition: all 0.2s ease; margin-bottom: 0;
-}
-.fin-branch-btn i { font-size: 26px; margin-bottom: 6px; display: block; }
-.fin-branch-btn.record i { color: #00b96b; }
-.fin-branch-btn.receipt i { color: #0969da; }
-.fin-branch-btn:hover { border-color: #00b96b; background: #f0fdf4; transform: translateY(-2px); }
 
 /* 類型標籤 (收入/支出) */
 .type-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
@@ -218,5 +222,23 @@ button { background-color: #00b96b; color: white; border: none; font-weight: bol
     body { padding: 0 10px; margin: 10px auto; }
     .card { padding: 14px; }
     .date-time-row { flex-direction: column; align-items: stretch; }
-    .fin-summary-box { flex-direction: column; gap: 4px; text-align: center; }
+    
+    /* 小版型：垂直直排，文字靠左、金額靠右 */
+    .fin-summary-box {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 12px 16px;
+    }
+    .fin-summary-box .summary-item {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        border-bottom: 1px dashed #f1f5f9;
+        padding-bottom: 6px;
+    }
+    .fin-summary-box .summary-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
 }

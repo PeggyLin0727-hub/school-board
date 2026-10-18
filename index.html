@@ -41,16 +41,16 @@
 
     <!-- 管理操作區塊 -->
     <div id="admin-section" class="card hidden">
-        <!-- 主選單：班級管理、學期管理、公告管理、財務管理 -->
+        <!-- 主選單：班級管理、學期管理、公告管理、財務管理 (維持原本順序，但預設切到公告管理) -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('classes-tab')">班級管理</button>
+            <button class="tab-btn" onclick="switchTab('classes-tab')">班級管理</button>
             <button class="tab-btn" onclick="switchTab('semesters-tab')">學期管理</button>
-            <button class="tab-btn" onclick="switchTab('ann-main-tab')">公告管理</button>
+            <button class="tab-btn active" onclick="switchTab('ann-main-tab')">公告管理</button>
             <button class="tab-btn" onclick="switchTab('fin-main-tab')">財務管理</button>
         </div>
 
         <!-- 1. 班級管理頁籤 -->
-        <div id="classes-tab" class="tab-content active">
+        <div id="classes-tab" class="tab-content">
             <h3>班級列表</h3>
             <div id="class-list-table" style="margin-top: 15px;"></div>
         </div>
@@ -61,20 +61,18 @@
             <div id="semester-list-table" style="margin-top: 15px;"></div>
         </div>
 
-        <!-- 2. 公告管理頁籤 -->
-        <div id="ann-main-tab" class="tab-content">
-            <!-- 單純下拉式選單 -->
-            <div style="margin-bottom: 15px;">
-                <select id="global-ann-class-select" onchange="onGlobalAnnClassChanged()">
-                    <option value="">-- 全部班級 --</option>
-                </select>
-            </div>
-
+        <!-- 2. 公告管理頁籤 (預設顯示 active) -->
+        <div id="ann-main-tab" class="tab-content active">
             <div class="sub-tab-pill-container">
                 <button id="sub-pill-ann" class="sub-pill-btn active" onclick="switchAnnSubTab('announcements')">公告發布</button>
                 <button id="sub-pill-cat" class="sub-pill-btn" onclick="switchAnnSubTab('ann-cat')">公告類別</button>
             </div>
             <div id="ann-list-view">
+                <div style="margin-bottom: 15px;">
+                    <select id="global-ann-class-select" onchange="onGlobalAnnClassChanged()">
+                        <option value="">-- 全部班級 --</option>
+                    </select>
+                </div>
                 <h3>公告列表</h3>
                 <div id="ann-list-table" style="margin-top: 15px;"></div>
             </div>
@@ -86,7 +84,10 @@
 
         <!-- 3. 財務管理頁籤 -->
         <div id="fin-main-tab" class="tab-content">
-            <!-- 頂部學期與班級篩選下拉選單 -->
+            <div class="sub-tab-pill-container">
+                <button id="sub-pill-fin-rec" class="sub-pill-btn active" onclick="switchFinSubTab('records')">收支金額明細</button>
+                <button id="sub-pill-fin-rcp" class="sub-pill-btn" onclick="switchFinSubTab('receipts')">發票與收據憑證</button>
+            </div>
             <div style="margin-bottom: 12px;">
                 <select id="global-fin-semester-select" onchange="onGlobalFinFilterChanged()">
                     <option value="">-- 全部學期 --</option>
@@ -96,11 +97,6 @@
                 <select id="global-fin-class-select" onchange="onGlobalFinFilterChanged()">
                     <option value="">-- 全部班級 --</option>
                 </select>
-            </div>
-
-            <div class="sub-tab-pill-container">
-                <button id="sub-pill-fin-rec" class="sub-pill-btn active" onclick="switchFinSubTab('records')">收支金額明細</button>
-                <button id="sub-pill-fin-rcp" class="sub-pill-btn" onclick="switchFinSubTab('receipts')">發票與收據憑證</button>
             </div>
 
             <!-- 金額明細檢視 -->
@@ -203,8 +199,14 @@
                 <button id="ann-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('ann')" title="刪除"><i class="fa-solid fa-trash"></i></button>
             </div>
             <input type="hidden" id="ann-edit-uid">
-            <label>選擇班級</label>
-            <select id="ann-class-select"><option value="">-- 請選擇班級 --</option></select>
+            
+            <div id="ann-selector-box" class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
+                    <select id="ann-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                </div>
+            </div>
+
             <label>公告類別</label>
             <select id="ann-cat-select"><option value="">-- 請選擇公告類別 --</option></select>
             <label>公告標題</label>
@@ -310,17 +312,14 @@
             </div>
             <input type="hidden" id="fin-record-edit-uid">
 
-            <!-- 班級與學期動態選擇或顯示區塊 -->
             <div id="fin-record-selector-box" class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
                     <select id="fin-record-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
-                    <span id="fin-record-class-display" class="highlight-text hidden">-</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-graduation-cap"></i> 學期:</label>
                     <select id="fin-record-semester-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
-                    <span id="fin-record-semester-display" class="highlight-text hidden">-</span>
                 </div>
             </div>
 
@@ -367,17 +366,14 @@
             </div>
             <input type="hidden" id="fin-receipt-edit-uid">
 
-            <!-- 班級與學期動態選擇或顯示區塊 -->
             <div id="fin-receipt-selector-box" class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
                     <select id="fin-receipt-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
-                    <span id="fin-receipt-class-display" class="highlight-text hidden">-</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-graduation-cap"></i> 學期:</label>
                     <select id="fin-receipt-semester-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
-                    <span id="fin-receipt-semester-display" class="highlight-text hidden">-</span>
                 </div>
             </div>
 
