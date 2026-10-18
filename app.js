@@ -509,7 +509,7 @@ window.openEditClassModal = function(uid, year, name, isDefault) {
 window.copyParentUrl = function() {
     const urlText = document.getElementById('class-parent-url-text').textContent;
     navigator.clipboard.writeText(urlText).then(() => {
-        showToast('已成功複製家長專用網址！', 'success');
+        showToast('已成功複製網址！', 'success');
     }).catch(err => {
         showToast('複製失敗，請手動複製', 'error');
     });
