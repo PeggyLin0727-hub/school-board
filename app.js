@@ -255,7 +255,7 @@ window.switchFinSubTab = function(subType) {
     else loadFinancialReceipts();
 };
 
-// 載入公告頁籤頂部的班級選單 (強制抓取最新預設)
+// 載入公告頁籤頂部的班級選單
 async function loadGlobalAnnClasses() {
     const selectEl = document.getElementById('global-ann-class-select');
     if (!selectEl) return;
@@ -286,7 +286,7 @@ window.onGlobalAnnClassChanged = function() {
     }
 };
 
-// 載入財務頁籤頂部的學期與班級選單 (強制抓取最新預設)
+// 載入財務頁籤頂部的學期與班級選單
 async function loadGlobalFinFilters() {
     const semesterSelect = document.getElementById('global-fin-semester-select');
     const classSelect = document.getElementById('global-fin-class-select');
@@ -414,7 +414,7 @@ logoutBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 1. 班級管理 (classes)
+ * 1. 班級管理 (classes) - 包含 QR Code 與複製網址功能
  * =================================================== */
 const classListTable = document.getElementById('class-list-table');
 const classModal = document.getElementById('class-modal');
@@ -467,6 +467,10 @@ window.openAddClassModal = function() {
     classModalTitle.textContent = '班級';
     saveClassBtn.textContent = '新增';
     classModalDeleteBtn.classList.add('hidden');
+    
+    // 新增時隱藏 QR Code 區塊
+    document.getElementById('class-qrcode-section').classList.add('hidden');
+    
     classModal.classList.remove('hidden');
 };
 
@@ -478,7 +482,37 @@ window.openEditClassModal = function(uid, year, name, isDefault) {
     classModalTitle.textContent = '班級';
     saveClassBtn.textContent = '更新';
     classModalDeleteBtn.classList.remove('hidden');
+
+    // 組合家長專用網址
+    const parentUrl = `https://peggylin0727-hub.github.io/school-board/?uid=${uid}`;
+    document.getElementById('class-parent-url-text').textContent = parentUrl;
+
+    // 清空並重新生成 QR Code
+    const qrcodeContainer = document.getElementById('qrcode-container');
+    qrcodeContainer.innerHTML = '';
+    new QRCode(qrcodeContainer, {
+        text: parentUrl,
+        width: 128,
+        height: 128,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
+
+    // 顯示 QR Code 區塊
+    document.getElementById('class-qrcode-section').classList.remove('hidden');
+
     classModal.classList.remove('hidden');
+};
+
+// 一鍵複製網址功能
+window.copyParentUrl = function() {
+    const urlText = document.getElementById('class-parent-url-text').textContent;
+    navigator.clipboard.writeText(urlText).then(() => {
+        showToast('已成功複製家長專用網址！', 'success');
+    }).catch(err => {
+        showToast('複製失敗，請手動複製', 'error');
+    });
 };
 
 saveClassBtn.addEventListener('click', async () => {
@@ -916,9 +950,8 @@ saveAnnBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 4. 新版財務管理 - 金額明細與發票紀錄
+ * 4. 財務管理
  * =================================================== */
-
 async function loadFinancialRecords() {
     showLoading();
     try {
@@ -927,7 +960,6 @@ async function loadFinancialRecords() {
         const selectedSemesterUid = semesterSelect ? semesterSelect.value : '';
         const selectedClassUid = classSelect ? classSelect.value : '';
 
-        // 1. 查詢目前篩選條件下的紀錄 (學期 + 班級)
         let query = supabaseClient
             .from('financial_records')
             .select(`
@@ -937,44 +969,30 @@ async function loadFinancialRecords() {
             `)
             .order('created_at', { ascending: false });
 
-        if (selectedSemesterUid) {
-            query = query.eq('semester_uid', selectedSemesterUid);
-        }
-        if (selectedClassUid) {
-            query = query.eq('class_uid', selectedClassUid);
-        }
+        if (selectedSemesterUid) query = query.eq('semester_uid', selectedSemesterUid);
+        if (selectedClassUid) query = query.eq('class_uid', selectedClassUid);
 
         const { data } = await query;
 
-        // 2. 查詢「僅依班級條件篩選（不限學期）」的總結餘
         let totalClassBalance = 0;
         let totalClassInc = 0;
         let totalClassExp = 0;
 
         if (selectedClassUid) {
-            const { data: allClassRecords } = await supabaseClient
-                .from('financial_records')
-                .select('amount, type')
-                .eq('class_uid', selectedClassUid);
-
+            const { data: allClassRecords } = await supabaseClient.from('financial_records').select('amount, type').eq('class_uid', selectedClassUid);
             if (allClassRecords) {
                 allClassRecords.forEach(r => {
                     const amt = Number(r.amount) || 0;
-                    if (Number(r.type) === 1) totalClassInc += amt;
-                    else totalClassExp += amt;
+                    if (Number(r.type) === 1) totalClassInc += amt; else totalClassExp += amt;
                 });
                 totalClassBalance = totalClassInc - totalClassExp;
             }
         } else {
-            const { data: allRecords } = await supabaseClient
-                .from('financial_records')
-                .select('amount, type');
-
+            const { data: allRecords } = await supabaseClient.from('financial_records').select('amount, type');
             if (allRecords) {
                 allRecords.forEach(r => {
                     const amt = Number(r.amount) || 0;
-                    if (Number(r.type) === 1) totalClassInc += amt;
-                    else totalClassExp += amt;
+                    if (Number(r.type) === 1) totalClassInc += amt; else totalClassExp += amt;
                 });
                 totalClassBalance = totalClassInc - totalClassExp;
             }
@@ -990,15 +1008,11 @@ async function loadFinancialRecords() {
             data.forEach(item => {
                 const isInc = Number(item.type) === 1;
                 const amt = Number(item.amount) || 0;
-                if (isInc) totalInc += amt;
-                else totalExp += amt;
+                if (isInc) totalInc += amt; else totalExp += amt;
 
                 const className = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未知班級';
                 const semesterName = item.semesters ? item.semesters.name : '未知學期';
-
-                const badge = isInc 
-                    ? `<span class="type-badge inc">收入</span>`
-                    : `<span class="type-badge exp">支出</span>`;
+                const badge = isInc ? `<span class="type-badge inc">收入</span>` : `<span class="type-badge exp">支出</span>`;
 
                 recordListEl.innerHTML += `
                     <div class="custom-card-item">
@@ -1026,8 +1040,6 @@ async function loadFinancialRecords() {
         }
 
         const balance = totalInc - totalExp;
-
-        // 渲染統計盒 (總結餘縮寫為「總餘」，支援大螢幕與手機板型對齊)
         summaryEl.innerHTML = `
             <div class="summary-item"><span class="summary-label">收入:</span><span class="inc">+$${totalInc.toLocaleString()}</span></div>
             <div class="summary-item"><span class="summary-label">支出:</span><span class="exp">-$${totalExp.toLocaleString()}</span></div>
@@ -1056,12 +1068,8 @@ async function loadFinancialReceipts() {
             `)
             .order('created_at', { ascending: false });
 
-        if (selectedSemesterUid) {
-            query = query.eq('semester_uid', selectedSemesterUid);
-        }
-        if (selectedClassUid) {
-            query = query.eq('class_uid', selectedClassUid);
-        }
+        if (selectedSemesterUid) query = query.eq('semester_uid', selectedSemesterUid);
+        if (selectedClassUid) query = query.eq('class_uid', selectedClassUid);
 
         const { data } = await query;
         const receiptListEl = document.getElementById('fin-receipt-list');
@@ -1107,14 +1115,10 @@ async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
     const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
 
     let defaultClassUid = '';
-    if (classes) {
-        classes.forEach(c => { if (c.is_default) defaultClassUid = c.uid; });
-    }
+    if (classes) classes.forEach(c => { if (c.is_default) defaultClassUid = c.uid; });
 
     let defaultSemesterUid = '';
-    if (semesters) {
-        semesters.forEach(s => { if (s.is_default) defaultSemesterUid = s.uid; });
-    }
+    if (semesters) semesters.forEach(s => { if (s.is_default) defaultSemesterUid = s.uid; });
 
     const finalClassUid = targetClassUid || defaultClassUid || (classes && classes.length > 0 ? classes[0].uid : '');
     const finalSemesterUid = targetSemesterUid || defaultSemesterUid || (semesters && semesters.length > 0 ? semesters[0].uid : '');
@@ -1125,22 +1129,14 @@ async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
     cSelects.forEach(sel => {
         if (!sel) return;
         sel.innerHTML = '<option value="">-- 請選擇班級 --</option>';
-        if (classes) {
-            classes.forEach(c => {
-                sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
-            });
-        }
+        if (classes) classes.forEach(c => { sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`; });
         sel.value = finalClassUid;
     });
 
     sSelects.forEach(sel => {
         if (!sel) return;
         sel.innerHTML = '<option value="">-- 請選擇學期 --</option>';
-        if (semesters) {
-            semesters.forEach(s => {
-                sel.innerHTML += `<option value="${s.uid}">${s.name}</option>`;
-            });
-        }
+        if (semesters) semesters.forEach(s => { sel.innerHTML += `<option value="${s.uid}">${s.name}</option>`; });
         sel.value = finalSemesterUid;
     });
 }
@@ -1149,13 +1145,11 @@ window.openDirectAddFinRecord = async function(classUid, semesterUid) {
     showLoading();
     try {
         await populateFinModalDropdowns(classUid, semesterUid);
-        
         document.getElementById('fin-record-edit-uid').value = '';
         document.getElementById('fin-record-name').value = '';
         document.getElementById('fin-record-type').value = '0';
         document.getElementById('fin-record-amount').value = '';
         document.getElementById('fin-record-remark').value = '';
-        
         const today = new Date().toISOString().split('T')[0];
         setCustomDateValue('fin-record', today);
 
@@ -1172,7 +1166,6 @@ window.openDirectAddFinReceiptModal = async function(classUid, semesterUid) {
     showLoading();
     try {
         await populateFinModalDropdowns(classUid, semesterUid);
-
         document.getElementById('fin-receipt-edit-uid').value = '';
         document.getElementById('fin-receipt-url').value = '';
         document.getElementById('fin-receipt-remark').value = '';
@@ -1191,7 +1184,6 @@ window.openEditFinRecordModal = async function(uid, encodedName, amount, type, d
     showLoading();
     try {
         await populateFinModalDropdowns(classUid, semesterUid);
-
         document.getElementById('fin-record-edit-uid').value = uid;
         document.getElementById('fin-record-name').value = decodeURIComponent(encodedName);
         document.getElementById('fin-record-type').value = String(type);
@@ -1212,7 +1204,6 @@ window.openEditFinReceiptModal = async function(uid, encodedUrl, encodedRemark, 
     showLoading();
     try {
         await populateFinModalDropdowns(classUid, semesterUid);
-
         const url = decodeURIComponent(encodedUrl);
         document.getElementById('fin-receipt-edit-uid').value = uid;
         document.getElementById('fin-receipt-url').value = url;

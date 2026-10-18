@@ -10,6 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- 引入 Font Awesome 圖示庫 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 QRCode 生成套件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -134,6 +136,17 @@
                     <i class="fa-solid fa-star" style="color: #f5b041;"></i> 設為預設
                 </label>
             </div>
+
+            <!-- 家長專用連結與 QR Code 區塊 (僅在編輯模式下顯示) -->
+            <div id="class-qrcode-section" class="hidden" style="margin-bottom: 16px; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <label style="font-weight: bold; color: #0969da; margin-bottom: 8px;"><i class="fa-solid fa-qrcode"></i> 家長專用瀏覽 QR Code</label>
+                <div id="qrcode-container" style="display: inline-block; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd; margin-bottom: 8px;"></div>
+                <div style="font-size: 12px; color: #64748b; word-break: break-all; margin-bottom: 8px;" id="class-parent-url-text"></div>
+                <button type="button" class="btn-secondary" style="width: auto; margin: 0 auto; padding: 4px 12px; font-size: 12px;" onclick="copyParentUrl()">
+                    <i class="fa-regular fa-copy"></i> 複製家長專用網址
+                </button>
+            </div>
+
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('class-modal')">取消</button>
                 <button id="save-class-btn">確認儲存</button>
