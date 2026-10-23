@@ -441,12 +441,12 @@ async function loadClasses() {
         classListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設班級</span>` : '';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
                 const schoolPrefix = item.SchoolName ? `${item.SchoolName} - ` : '';
                 classListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${schoolPrefix}${item.name} ${defaultBadge}</div>
+                            <div class="card-title">${defaultBadge}${schoolPrefix}${item.name}</div>
                             <div class="card-sub">${item.academic_year}學年度</div>
                         </div>
                         <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${encodeURIComponent(item.SchoolName || '')}', '${item.academic_year}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
@@ -581,11 +581,11 @@ async function loadSemesters() {
         semesterListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設學期</span>` : '';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
                 semesterListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${item.name} ${defaultBadge}</div>
+                            <div class="card-title">${defaultBadge}${item.name}</div>
                             <div class="card-sub">排序編號: ${item.sort_order ?? 0}</div>
                         </div>
                         <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.sort_order ?? 0}', ${item.is_default})" title="編輯">
@@ -690,11 +690,11 @@ async function loadAnnouncementCategories() {
         if (data && data.length > 0) {
             data.forEach(item => {
                 const colorHex = item.color || '#ccc';
-                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設類別</span>` : '';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
                 annCatListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${item.name} ${defaultBadge}</div>
+                            <div class="card-title">${defaultBadge}${item.name}</div>
                             <div class="card-sub" style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
                                 <span class="color-badge" style="background-color: ${colorHex};"></span><span>${colorHex}</span>
                             </div>
