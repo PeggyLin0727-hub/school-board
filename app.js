@@ -266,7 +266,8 @@ async function loadGlobalAnnClasses() {
     let defaultUid = '';
     if (classes) {
         classes.forEach(c => {
-            selectEl.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
+            selectEl.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
             if (c.is_default) {
                 defaultUid = c.uid;
             }
@@ -312,7 +313,8 @@ async function loadGlobalFinFilters() {
     let defaultClassUid = '';
     if (classes && classes.length > 0) {
         classes.forEach(c => {
-            classSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
+            classSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
             if (c.is_default) defaultClassUid = c.uid;
         });
         if (defaultClassUid) {
@@ -421,6 +423,7 @@ const classModal = document.getElementById('class-modal');
 const classModalTitle = document.getElementById('class-modal-title');
 const classModalDeleteBtn = document.getElementById('class-modal-delete-btn');
 const classEditUid = document.getElementById('class-edit-uid');
+const classSchoolName = document.getElementById('class-school-name');
 const classYear = document.getElementById('class-year');
 const classNameInput = document.getElementById('class-name');
 const classIsDefault = document.getElementById('class-is-default');
@@ -439,13 +442,14 @@ async function loadClasses() {
         if (data && data.length > 0) {
             data.forEach(item => {
                 const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px;"><i class="fa-solid fa-star"></i> 預設班級</span>` : '';
+                const schoolPrefix = item.SchoolName ? `${item.SchoolName} - ` : '';
                 classListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${item.name} ${defaultBadge}</div>
+                            <div class="card-title">${schoolPrefix}${item.name} ${defaultBadge}</div>
                             <div class="card-sub">${item.academic_year}學年度</div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${item.academic_year}', '${item.name}', ${item.is_default})" title="編輯">
+                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${encodeURIComponent(item.SchoolName || '')}', '${item.academic_year}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
@@ -461,6 +465,7 @@ async function loadClasses() {
 
 window.openAddClassModal = function() {
     classEditUid.value = '';
+    if (classSchoolName) classSchoolName.value = '';
     classYear.value = '';
     classNameInput.value = '';
     classIsDefault.checked = false;
@@ -473,10 +478,11 @@ window.openAddClassModal = function() {
     classModal.classList.remove('hidden');
 };
 
-window.openEditClassModal = function(uid, year, name, isDefault) {
+window.openEditClassModal = function(uid, encodedSchoolName, year, encodedName, isDefault) {
     classEditUid.value = uid;
+    if (classSchoolName) classSchoolName.value = decodeURIComponent(encodedSchoolName || '');
     classYear.value = year;
-    classNameInput.value = name;
+    classNameInput.value = decodeURIComponent(encodedName || '');
     classIsDefault.checked = isDefault === true || isDefault === 'true';
     classModalTitle.textContent = '班級';
     saveClassBtn.textContent = '更新';
@@ -511,6 +517,7 @@ window.copyParentUrl = function() {
 };
 
 saveClassBtn.addEventListener('click', async () => {
+    const SchoolName = classSchoolName ? classSchoolName.value.trim() : '';
     const academic_year = classYear.value.trim();
     const name = classNameInput.value.trim();
     const is_default = classIsDefault.checked;
@@ -524,8 +531,10 @@ saveClassBtn.addEventListener('click', async () => {
             await supabaseClient.from('classes').update({ is_default: false }).neq('uid', uid || 'none');
         }
 
+        const payload = { SchoolName, academic_year, name, is_default };
+
         if (uid) {
-            const { error } = await supabaseClient.from('classes').update({ academic_year, name, is_default }).eq('uid', uid);
+            const { error } = await supabaseClient.from('classes').update(payload).eq('uid', uid);
             if (error) {
                 showToast('修改失敗: ' + error.message, 'error');
             } else { 
@@ -536,7 +545,7 @@ saveClassBtn.addEventListener('click', async () => {
                 await loadGlobalFinFilters(); 
             }
         } else {
-            const { error } = await supabaseClient.from('classes').insert([{ academic_year, name, is_default }]);
+            const { error } = await supabaseClient.from('classes').insert([payload]);
             if (error) {
                 showToast('新增失敗: ' + error.message, 'error');
             } else { 
@@ -579,7 +588,7 @@ async function loadSemesters() {
                             <div class="card-title">${item.name} ${defaultBadge}</div>
                             <div class="card-sub">排序編號: ${item.sort_order ?? 0}</div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${item.name}', '${item.sort_order ?? 0}', ${item.is_default})" title="編輯">
+                        <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.sort_order ?? 0}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
@@ -604,9 +613,9 @@ window.openAddSemesterModal = function() {
     semesterModal.classList.remove('hidden');
 };
 
-window.openEditSemesterModal = function(uid, name, sortOrder, isDefault) {
+window.openEditSemesterModal = function(uid, encodedName, sortOrder, isDefault) {
     semesterEditUid.value = uid;
-    semesterNameInput.value = name;
+    semesterNameInput.value = decodeURIComponent(encodedName || '');
     semesterSortInput.value = sortOrder;
     semesterIsDefault.checked = isDefault === true || isDefault === 'true';
     semesterModalTitle.textContent = '學期';
@@ -690,7 +699,7 @@ async function loadAnnouncementCategories() {
                                 <span class="color-badge" style="background-color: ${colorHex};"></span><span>${colorHex}</span>
                             </div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditAnnCatModal('${item.uid}', '${item.name}', '${item.color}', ${item.is_default})" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                        <button class="icon-edit-btn" onclick="openEditAnnCatModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.color}', ${item.is_default})" title="編輯"><i class="fa-solid fa-pen"></i></button>
                     </div>
                 `;
             });
@@ -713,9 +722,9 @@ window.openAddAnnCatModal = function() {
     annCatModal.classList.remove('hidden');
 };
 
-window.openEditAnnCatModal = function(uid, name, color, isDefault) {
+window.openEditAnnCatModal = function(uid, encodedName, color, isDefault) {
     annCatEditUid.value = uid;
-    annCatName.value = name;
+    annCatName.value = decodeURIComponent(encodedName || '');
     annCatColor.value = color || '#1890ff';
     annCatIsDefault.checked = isDefault === true || isDefault === 'true';
     annCatModalTitle.textContent = '公告類別';
@@ -775,7 +784,7 @@ async function loadAnnouncements() {
 
         let query = supabaseClient
             .from('announcements')
-            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, name ), announcement_categories ( name, color )`)
+            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, name, SchoolName ), announcement_categories ( name, color )`)
             .order('is_pinned', { ascending: false })
             .order('created_at', { ascending: false });
 
@@ -788,7 +797,8 @@ async function loadAnnouncements() {
         annListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const classNameText = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未指定';
+                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
+                const classNameText = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未指定';
                 const catName = item.announcement_categories ? item.announcement_categories.name : '未指定';
                 const catColor = item.announcement_categories ? item.announcement_categories.color : '#64748b';
                 const pinBadge = item.is_pinned ? `<span class="pin-tag">置頂</span>` : '';
@@ -804,18 +814,14 @@ async function loadAnnouncements() {
                 else if (!hasStart && hasEnd) timeRangeText = `到 ${item.end_date}${endTimeStr} 為止`;
                 else timeRangeText = `${item.start_date}${startTimeStr} ~ ${item.end_date}${endTimeStr}`;
                 
-                // 這裡已將類別移至第一行，標題移至第二行
                 annListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info" style="width: calc(100% - 45px);">
-                            <!-- 第一行：置頂與類別標籤 -->
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                                 ${pinBadge}
                                 <span class="category-badge" style="background-color: ${catColor};">${catName}</span>
                             </div>
-                            <!-- 第二行：公告標題 -->
                             <div class="card-title" style="font-size: 16px; font-weight: bold; color: #1e293b; margin-bottom: 4px;">${item.name}</div>
-                            <!-- 第三行：班級與時間資訊 -->
                             <div class="card-sub" style="margin-top: 6px; line-height: 1.5;">
                                 <div style="color: #64748b;">${classNameText}</div>
                                 <div style="color: #475569; font-size: 12px;"><i class="fa-regular fa-clock" style="margin-right: 4px;"></i>${timeRangeText}</div>
@@ -846,7 +852,8 @@ async function loadAnnOptions(defaultClassUid = null, defaultCatUid = null) {
 
     if (classes) {
         classes.forEach(c => {
-            annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`;
+            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
+            annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
         });
     }
     if (targetClassUid) annClassSelect.value = targetClassUid;
@@ -964,7 +971,7 @@ async function loadFinancialRecords() {
             .from('financial_records')
             .select(`
                 uid, name, remark, date, amount, type, class_uid, semester_uid,
-                classes ( academic_year, name ),
+                classes ( academic_year, name, SchoolName ),
                 semesters ( name )
             `)
             .order('created_at', { ascending: false });
@@ -1010,7 +1017,8 @@ async function loadFinancialRecords() {
                 const amt = Number(item.amount) || 0;
                 if (isInc) totalInc += amt; else totalExp += amt;
 
-                const className = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未知班級';
+                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
+                const className = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未知班級';
                 const semesterName = item.semesters ? item.semesters.name : '未知學期';
                 const badge = isInc ? `<span class="type-badge inc">收入</span>` : `<span class="type-badge exp">支出</span>`;
 
@@ -1063,7 +1071,7 @@ async function loadFinancialReceipts() {
             .from('financial_receipts')
             .select(`
                 uid, receipt_url, remark, created_at, class_uid, semester_uid,
-                classes ( academic_year, name ),
+                classes ( academic_year, name, SchoolName ),
                 semesters ( name )
             `)
             .order('created_at', { ascending: false });
@@ -1077,7 +1085,8 @@ async function loadFinancialReceipts() {
 
         if (data && data.length > 0) {
             data.forEach(item => {
-                const className = item.classes ? `${item.classes.academic_year} - ${item.classes.name}` : '未知班級';
+                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
+                const className = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未知班級';
                 const semesterName = item.semesters ? item.semesters.name : '未知學期';
                 const createdDate = item.created_at ? item.created_at.split('T')[0] : '';
 
@@ -1129,7 +1138,10 @@ async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
     cSelects.forEach(sel => {
         if (!sel) return;
         sel.innerHTML = '<option value="">-- 請選擇班級 --</option>';
-        if (classes) classes.forEach(c => { sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${c.name}</option>`; });
+        if (classes) classes.forEach(c => { 
+            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
+            sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`; 
+        });
         sel.value = finalClassUid;
     });
 
