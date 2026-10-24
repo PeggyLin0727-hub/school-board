@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>班級公告與財務管理 - 管理後台</title>
     <!-- 引入外部 CSS 樣式表 -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=261024">
     <!-- 引入 Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- 引入 Font Awesome 圖示庫 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- 引入 QRCode 生成套件 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- 引入 Quill.js 富文本編輯器 (Snow Theme) -->
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 </head>
 <body>
 
@@ -226,8 +229,11 @@
             <select id="ann-cat-select"><option value="">-- 請選擇公告類別 --</option></select>
             <label>公告標題</label>
             <input type="text" id="ann-title" placeholder="請輸入公告標題">
+            
             <label>公告內容</label>
-            <textarea id="ann-note" rows="3" placeholder="請輸入詳細內容"></textarea>
+            <div id="ann-quill-wrapper" style="margin-bottom: 12px;">
+                <div id="ann-quill-editor" style="height: 200px;"></div>
+            </div>
 
             <label>公告附件圖片 (支援 PNG, JPG, JPEG)</label>
             <div class="upload-drop-zone" id="ann-drop-zone"
@@ -477,6 +483,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=261024"></script>
+    <script src="scriptAdmin.js?v=261024"></script>
 </body>
 </html>
