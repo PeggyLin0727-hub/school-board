@@ -14,6 +14,17 @@ let currentDeleteType = null;
 let quillEditor = null; 
 let savedRangeForLink = null; 
 
+// === 輔助函式：自動重置 Modal 內部的捲軸到最頂端 ===
+function resetModalScroll(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        const card = modal.querySelector('.modal-card');
+        if (card) {
+            card.scrollTop = 0;
+        }
+    }
+}
+
 // === 初始化 Quill 富文本編輯器與自訂超連結彈窗 ===
 function initQuillEditor() {
     if (quillEditor) return;
@@ -71,6 +82,7 @@ function openLinkModal() {
     }
     document.getElementById('custom-link-input').value = 'https://';
     modal.classList.remove('hidden');
+    resetModalScroll('custom-link-modal');
     setTimeout(() => {
         const input = document.getElementById('custom-link-input');
         if (input) { input.focus(); input.select(); }
@@ -508,7 +520,7 @@ async function loadSchools() {
         schoolListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i>預設</span>` : '';
                 schoolListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
@@ -536,6 +548,7 @@ window.openAddSchoolModal = function() {
     saveSchoolBtn.textContent = '新增';
     schoolModalDeleteBtn.classList.add('hidden');
     schoolModal.classList.remove('hidden');
+    resetModalScroll('school-modal');
 };
 
 window.openEditSchoolModal = function(uid, encodedName, isDefault) {
@@ -546,6 +559,7 @@ window.openEditSchoolModal = function(uid, encodedName, isDefault) {
     saveSchoolBtn.textContent = '更新';
     schoolModalDeleteBtn.classList.remove('hidden');
     schoolModal.classList.remove('hidden');
+    resetModalScroll('school-modal');
 };
 
 saveSchoolBtn.addEventListener('click', async () => {
@@ -654,6 +668,7 @@ window.openAddClassModal = async function() {
     classModalDeleteBtn.classList.add('hidden');
     document.getElementById('class-qrcode-section').classList.add('hidden');
     classModal.classList.remove('hidden');
+    resetModalScroll('class-modal');
 };
 
 window.openEditClassModal = async function(uid, schoolUid, year, encodedName, isDefault) {
@@ -682,6 +697,7 @@ window.openEditClassModal = async function(uid, schoolUid, year, encodedName, is
 
     document.getElementById('class-qrcode-section').classList.remove('hidden');
     classModal.classList.remove('hidden');
+    resetModalScroll('class-modal');
 };
 
 window.copyParentUrl = function() {
@@ -790,6 +806,7 @@ window.openAddSemesterModal = function() {
     saveSemesterBtn.textContent = '新增';
     semesterModalDeleteBtn.classList.add('hidden');
     semesterModal.classList.remove('hidden');
+    resetModalScroll('semester-modal');
 };
 
 window.openEditSemesterModal = function(uid, encodedName, isDefault) {
@@ -800,6 +817,7 @@ window.openEditSemesterModal = function(uid, encodedName, isDefault) {
     saveSemesterBtn.textContent = '更新';
     semesterModalDeleteBtn.classList.remove('hidden');
     semesterModal.classList.remove('hidden');
+    resetModalScroll('semester-modal');
 };
 
 saveSemesterBtn.addEventListener('click', async () => {
@@ -895,6 +913,7 @@ window.openAddAnnCatModal = function() {
     saveAnnCatBtn.textContent = '新增';
     annCatModalDeleteBtn.classList.add('hidden');
     annCatModal.classList.remove('hidden');
+    resetModalScroll('ann-cat-modal');
 };
 
 window.openEditAnnCatModal = function(uid, encodedName, color, isDefault) {
@@ -906,6 +925,7 @@ window.openEditAnnCatModal = function(uid, encodedName, color, isDefault) {
     saveAnnCatBtn.textContent = '更新';
     annCatModalDeleteBtn.classList.remove('hidden');
     annCatModal.classList.remove('hidden');
+    resetModalScroll('ann-cat-modal');
 };
 
 saveAnnCatBtn.addEventListener('click', async () => {
@@ -1068,7 +1088,9 @@ window.openAddAnnModal = async function(preselectedClassUid = null) {
         annIsPinned.checked = false;
 
         annModalTitle.textContent = '新增公告'; saveAnnBtn.textContent = '新增';
-        annModalDeleteBtn.classList.add('hidden'); annModal.classList.remove('hidden');
+        annModalDeleteBtn.classList.add('hidden'); 
+        annModal.classList.remove('hidden');
+        resetModalScroll('ann-modal');
     } finally {
         hideLoading();
     }
@@ -1097,7 +1119,9 @@ window.openEditAnnModal = async function(uid, classUid, catUid, encodedName, enc
         annIsPinned.checked = isPinned === 'true' || isPinned === true;
 
         annModalTitle.textContent = '編輯公告'; saveAnnBtn.textContent = '更新';
-        annModalDeleteBtn.classList.remove('hidden'); annModal.classList.remove('hidden');
+        annModalDeleteBtn.classList.remove('hidden'); 
+        annModal.classList.remove('hidden');
+        resetModalScroll('ann-modal');
     } finally {
         hideLoading();
     }
@@ -1349,6 +1373,7 @@ window.openDirectAddFinRecord = async function(classUid, semesterUid) {
         document.getElementById('save-fin-record-btn').textContent = '新增';
         document.getElementById('fin-record-modal-delete-btn').classList.add('hidden');
         document.getElementById('fin-record-modal').classList.remove('hidden');
+        resetModalScroll('fin-record-modal');
     } finally {
         hideLoading();
     }
@@ -1367,6 +1392,7 @@ window.openDirectAddFinReceiptModal = async function(classUid, semesterUid) {
         document.getElementById('save-fin-receipt-btn').textContent = '新增';
         document.getElementById('fin-receipt-modal-delete-btn').classList.add('hidden');
         document.getElementById('fin-receipt-modal').classList.remove('hidden');
+        resetModalScroll('fin-receipt-modal');
     } finally {
         hideLoading();
     }
@@ -1387,6 +1413,7 @@ window.openEditFinRecordModal = async function(uid, encodedName, amount, type, d
         document.getElementById('save-fin-record-btn').textContent = '更新';
         document.getElementById('fin-record-modal-delete-btn').classList.remove('hidden');
         document.getElementById('fin-record-modal').classList.remove('hidden');
+        resetModalScroll('fin-record-modal');
     } finally {
         hideLoading();
     }
@@ -1406,6 +1433,7 @@ window.openEditFinReceiptModal = async function(uid, encodedUrl, encodedRemark, 
         document.getElementById('save-fin-receipt-btn').textContent = '更新';
         document.getElementById('fin-receipt-modal-delete-btn').classList.remove('hidden');
         document.getElementById('fin-receipt-modal').classList.remove('hidden');
+        resetModalScroll('fin-receipt-modal');
     } finally {
         hideLoading();
     }
@@ -1579,6 +1607,7 @@ const confirmDeleteModal = document.getElementById('confirm-delete-modal');
 window.openConfirmDeleteModal = function(type) {
     currentDeleteType = type;
     confirmDeleteModal.classList.remove('hidden');
+    resetModalScroll('confirm-delete-modal');
 };
 
 window.closeConfirmDeleteModal = function() {
