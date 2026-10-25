@@ -46,24 +46,38 @@
 
     <!-- 管理操作區塊 -->
     <div id="admin-section" class="card hidden">
-        <!-- 主選單：班級管理、學期管理、公告管理、財務管理 -->
+        <!-- 主選單：班級管理、公告管理(預設)、財務管理 -->
         <div class="tabs">
             <button class="tab-btn" onclick="switchTab('classes-tab')">班級管理</button>
-            <button class="tab-btn" onclick="switchTab('semesters-tab')">學期管理</button>
             <button class="tab-btn active" onclick="switchTab('ann-main-tab')">公告管理</button>
             <button class="tab-btn" onclick="switchTab('fin-main-tab')">財務管理</button>
         </div>
 
-        <!-- 1. 班級管理頁籤 -->
+        <!-- 1. 班級管理頁籤（內含 3 個膠囊切換：班級設定、學期設定、學校設定） -->
         <div id="classes-tab" class="tab-content">
-            <h3>班級列表</h3>
-            <div id="class-list-table" style="margin-top: 15px;"></div>
-        </div>
+            <div class="sub-tab-pill-container">
+                <button id="sub-pill-class-setting" class="sub-pill-btn active" onclick="switchClassSubTab('classes')">班級設定</button>
+                <button id="sub-pill-semester-setting" class="sub-pill-btn" onclick="switchClassSubTab('semesters')">學期設定</button>
+                <button id="sub-pill-school-setting" class="sub-pill-btn" onclick="switchClassSubTab('schools')">學校設定</button>
+            </div>
 
-        <!-- 1.5 學期管理頁籤 -->
-        <div id="semesters-tab" class="tab-content">
-            <h3>學期列表</h3>
-            <div id="semester-list-table" style="margin-top: 15px;"></div>
+            <!-- 班級列表 -->
+            <div id="class-setting-view">
+                <h3>班級列表</h3>
+                <div id="class-list-table" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- 學期列表 -->
+            <div id="semester-setting-view" class="hidden">
+                <h3>學期列表</h3>
+                <div id="semester-list-table" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- 學校列表 -->
+            <div id="school-setting-view" class="hidden">
+                <h3>學校列表</h3>
+                <div id="school-list-table" style="margin-top: 15px;"></div>
+            </div>
         </div>
 
         <!-- 2. 公告管理頁籤 (預設顯示 active) -->
@@ -129,12 +143,18 @@
                 <button id="class-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('class')" title="刪除"><i class="fa-solid fa-trash"></i></button>
             </div>
             <input type="hidden" id="class-edit-uid">
-            <label>學校名稱</label>
-            <input type="text" id="class-school-name" placeholder="請輸入學校名稱">
-            <label>年度</label>
-            <input type="text" id="class-year" placeholder="請輸入年度">
-            <label>班級全名</label>
-            <input type="text" id="class-name" placeholder="請輸入班級全名">
+            
+            <label>學校 <span style="color:red;">*</span></label>
+            <select id="class-school-uid">
+                <option value="">-- 請選擇學校 --</option>
+            </select>
+
+            <label>年度 <span style="color:red;">*</span></label>
+            <input type="text" id="class-year" placeholder="請輸入年度 (例: 114)">
+            
+            <label>班級全名 <span style="color:red;">*</span></label>
+            <input type="text" id="class-name" placeholder="請輸入班級全名 (例: 七年一班)">
+            
             <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <input type="checkbox" id="class-is-default" style="width: 18px; height: 18px; margin-bottom: 0; accent-color: #00b96b;">
                 <label for="class-is-default" style="margin-bottom: 0; cursor: pointer; font-weight: bold; color: #1e293b;">
@@ -144,7 +164,6 @@
 
             <!-- 家長專用連結與 QR Code 區塊 (僅在編輯模式下顯示) -->
             <div id="class-qrcode-section" class="hidden" style="margin-bottom: 16px; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                <label style="font-weight: bold; color: #0969da; margin-bottom: 8px;display:none;"><i class="fa-solid fa-qrcode"></i> QR Code</label>
                 <div id="qrcode-container" style="display: inline-block; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd; margin-bottom: 8px;"></div>
                 <div style="font-size: 12px; color: #64748b; word-break: break-all; margin-bottom: 8px;" id="class-parent-url-text"></div>
                 <button type="button" class="btn-secondary" style="width: auto; margin: 0 auto; padding: 4px 12px; font-size: 12px;" onclick="copyParentUrl()">
@@ -155,6 +174,29 @@
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('class-modal')">取消</button>
                 <button id="save-class-btn">確認儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1.2 學校 Modal -->
+    <div id="school-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="school-modal-title">新增學校</h3>
+                <button id="school-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('school')" title="刪除"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <input type="hidden" id="school-edit-uid">
+            <label>學校名稱 <span style="color:red;">*</span></label>
+            <input type="text" id="school-name" placeholder="例如：臺北市立興雅國民中學">
+            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <input type="checkbox" id="school-is-default" style="width: 18px; height: 18px; margin-bottom: 0; accent-color: #00b96b;">
+                <label for="school-is-default" style="margin-bottom: 0; cursor: pointer; font-weight: bold; color: #1e293b;">
+                    <i class="fa-solid fa-star" style="color: #f5b041;"></i> 設為預設學校 (僅能有一個)
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('school-modal')">取消</button>
+                <button id="save-school-btn">確認儲存</button>
             </div>
         </div>
     </div>
@@ -484,6 +526,6 @@
     </div>
 
     <script src="app.js?v=261024"></script>
-    <script src="scriptAdmin.js?v=261024"></script>
+    <script src="scriptAdmin.js?v=261025"></script>
 </body>
 </html>

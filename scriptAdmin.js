@@ -6,12 +6,13 @@ const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const authMsg = document.getElementById('auth-msg');
 
-let currentActiveTab = 'ann-main-tab'; 
+let currentActiveTab = 'ann-main-tab'; // 一進來預設為公告管理
 let currentAnnSubTab = 'announcements'; 
 let currentFinSubTab = 'records'; 
+let currentClassSubTab = 'classes'; // 班級管理底下的子頁籤 (classes / semesters / schools)
 let currentDeleteType = null; 
-let quillEditor = null; // Quill 富文本編輯器實例
-let savedRangeForLink = null; // 紀錄超連結選取的文字範圍
+let quillEditor = null; 
+let savedRangeForLink = null; 
 
 // === 初始化 Quill 富文本編輯器與自訂超連結彈窗 ===
 function initQuillEditor() {
@@ -25,16 +26,15 @@ function initQuillEditor() {
         modules: {
             toolbar: [
                 [{ 'header': [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline', 'strike'],        // 文字樣式
-                [{ 'color': [] }, { 'background': [] }],          // 文字與背景顏色
-                [{ 'align': [] }],                                // 對齊方式
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],     // 項目符號/編號
-                ['link', 'clean']                                 // 連結與清除格式
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'align': [] }],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'clean']
             ]
         }
     });
 
-    // 攔截 Quill 工具列的超連結點擊事件，改用我們自訂的置中 Modal 彈跳視窗
     const toolbar = quillEditor.getModule('toolbar');
     toolbar.addHandler('link', function(value) {
         if (value) {
@@ -94,7 +94,6 @@ window.confirmInsertLink = function() {
     closeLinkModal();
 };
 
-// === 全螢幕載入中控制函數 ===
 function showLoading() {
     const overlay = document.getElementById('global-loading-overlay');
     if (overlay) overlay.classList.remove('hidden');
@@ -105,7 +104,6 @@ function hideLoading() {
     if (overlay) overlay.classList.add('hidden');
 }
 
-// === Supabase Storage 圖片上傳通用邏輯 (支援 PNG, JPG, JPEG) ===
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 const BUCKET_NAME = 'receipts-and-attachments';
 
@@ -200,7 +198,6 @@ function showImagePreview(type, url) {
     }
 }
 
-// 自訂 Toast 提示訊息
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -215,7 +212,6 @@ function showToast(message, type = 'success') {
     }, 2500);
 }
 
-// 初始化 24 小時制下拉選單
 function init24HourSelects() {
     const targets = [
         { h: 'ann-start-hour', m: 'ann-start-minute', defaultH: '00', defaultM: '00' },
@@ -227,14 +223,14 @@ function init24HourSelects() {
         const mEl = document.getElementById(t.m);
         if (!hEl || !mEl) return;
 
-        let hourHtml = t.defaultH === '' ? '<option value="">請選擇</option>' : '';
+        let hourHtml = '';
         for (let i = 0; i < 24; i++) {
             const val = String(i).padStart(2, '0');
             hourHtml += `<option value="${val}">${val}</option>`;
         }
         hEl.innerHTML = hourHtml;
 
-        let minHtml = t.defaultM === '' ? '<option value="">請選擇</option>' : '';
+        let minHtml = '';
         for (let i = 0; i < 60; i += 1) {
             const val = String(i).padStart(2, '0');
             minHtml += `<option value="${val}">${val}</option>`;
@@ -296,8 +292,11 @@ window.switchTab = async function(tabId) {
     await loadGlobalAnnClasses();
     await loadGlobalFinFilters();
 
-    if (tabId === 'classes-tab') loadClasses();
-    else if (tabId === 'semesters-tab') loadSemesters();
+    if (tabId === 'classes-tab') {
+        if (currentClassSubTab === 'classes') loadClasses();
+        else if (currentClassSubTab === 'semesters') loadSemesters();
+        else if (currentClassSubTab === 'schools') loadSchools();
+    }
     else if (tabId === 'ann-main-tab') {
         if (currentAnnSubTab === 'announcements') loadAnnouncements();
         else loadAnnouncementCategories();
@@ -308,7 +307,22 @@ window.switchTab = async function(tabId) {
     }
 };
 
-// 公告子頁籤切換
+// 班級管理底下的子頁籤切換 (班級設定 / 學期設定 / 學校設定)
+window.switchClassSubTab = function(subType) {
+    currentClassSubTab = subType;
+    document.getElementById('sub-pill-class-setting').classList.toggle('active', subType === 'classes');
+    document.getElementById('sub-pill-semester-setting').classList.toggle('active', subType === 'semesters');
+    document.getElementById('sub-pill-school-setting').classList.toggle('active', subType === 'schools');
+
+    document.getElementById('class-setting-view').classList.toggle('hidden', subType !== 'classes');
+    document.getElementById('semester-setting-view').classList.toggle('hidden', subType !== 'semesters');
+    document.getElementById('school-setting-view').classList.toggle('hidden', subType !== 'schools');
+
+    if (subType === 'classes') loadClasses();
+    else if (subType === 'semesters') loadSemesters();
+    else if (subType === 'schools') loadSchools();
+};
+
 window.switchAnnSubTab = function(subType) {
     currentAnnSubTab = subType;
     document.getElementById('sub-pill-ann').classList.toggle('active', subType === 'announcements');
@@ -320,7 +334,6 @@ window.switchAnnSubTab = function(subType) {
     else loadAnnouncementCategories();
 };
 
-// 財務子頁籤切換
 window.switchFinSubTab = function(subType) {
     currentFinSubTab = subType;
     document.getElementById('sub-pill-fin-rec').classList.toggle('active', subType === 'records');
@@ -332,30 +345,22 @@ window.switchFinSubTab = function(subType) {
     else loadFinancialReceipts();
 };
 
-// 載入公告頁籤頂部的班級選單
 async function loadGlobalAnnClasses() {
     const selectEl = document.getElementById('global-ann-class-select');
     if (!selectEl) return;
 
-    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    const { data: classes } = await supabaseClient.from('classes').select('*, school(name)').order('academic_year', { ascending: false });
     selectEl.innerHTML = '<option value="">-- 全部班級 --</option>';
     
     let defaultUid = '';
     if (classes) {
         classes.forEach(c => {
-            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
-            selectEl.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
-            if (c.is_default) {
-                defaultUid = c.uid;
-            }
+            const schoolName = c.school ? `${c.school.name} ` : '';
+            selectEl.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolName}${c.name}</option>`;
+            if (c.is_default) defaultUid = c.uid;
         });
     }
-
-    if (defaultUid) {
-        selectEl.value = defaultUid;
-    } else {
-        selectEl.value = "";
-    }
+    selectEl.value = defaultUid || "";
 }
 
 window.onGlobalAnnClassChanged = function() {
@@ -364,7 +369,6 @@ window.onGlobalAnnClassChanged = function() {
     }
 };
 
-// 載入財務頁籤頂部的學期與班級選單
 async function loadGlobalFinFilters() {
     const semesterSelect = document.getElementById('global-fin-semester-select');
     const classSelect = document.getElementById('global-fin-class-select');
@@ -373,32 +377,24 @@ async function loadGlobalFinFilters() {
     const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
     semesterSelect.innerHTML = '<option value="">-- 全部學期 --</option>';
     let defaultSemUid = '';
-    if (semesters && semesters.length > 0) {
+    if (semesters) {
         semesters.forEach(s => {
             semesterSelect.innerHTML += `<option value="${s.uid}">${s.name}</option>`;
             if (s.is_default) defaultSemUid = s.uid;
         });
-        if (defaultSemUid) {
-            semesterSelect.value = defaultSemUid;
-        } else {
-            semesterSelect.value = ""; 
-        }
+        semesterSelect.value = defaultSemUid || "";
     }
 
-    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    const { data: classes } = await supabaseClient.from('classes').select('*, school(name)').order('academic_year', { ascending: false });
     classSelect.innerHTML = '<option value="">-- 全部班級 --</option>';
     let defaultClassUid = '';
-    if (classes && classes.length > 0) {
+    if (classes) {
         classes.forEach(c => {
-            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
-            classSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
+            const schoolName = c.school ? `${c.school.name} ` : '';
+            classSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolName}${c.name}</option>`;
             if (c.is_default) defaultClassUid = c.uid;
         });
-        if (defaultClassUid) {
-            classSelect.value = defaultClassUid;
-        } else {
-            classSelect.value = "";
-        }
+        classSelect.value = defaultClassUid || "";
     }
 }
 
@@ -409,29 +405,27 @@ window.onGlobalFinFilterChanged = function() {
     }
 };
 
-// 右下角 FAB 按鈕動作
+// FAB 按鈕動作
 window.handleFabClick = async function() {
-    if (currentActiveTab === 'classes-tab') openAddClassModal();
-    else if (currentActiveTab === 'semesters-tab') openAddSemesterModal();
+    if (currentActiveTab === 'classes-tab') {
+        if (currentClassSubTab === 'classes') openAddClassModal();
+        else if (currentClassSubTab === 'semesters') openAddSemesterModal();
+        else if (currentClassSubTab === 'schools') openAddSchoolModal();
+    }
     else if (currentActiveTab === 'ann-main-tab') {
         if (currentAnnSubTab === 'announcements') {
             const globalClassSelect = document.getElementById('global-ann-class-select');
-            const selectedClassUid = globalClassSelect ? globalClassSelect.value : null;
-            openAddAnnModal(selectedClassUid);
+            openAddAnnModal(globalClassSelect ? globalClassSelect.value : null);
         }
         else openAddAnnCatModal();
     }
     else if (currentActiveTab === 'fin-main-tab') {
         const semesterSelect = document.getElementById('global-fin-semester-select');
         const classSelect = document.getElementById('global-fin-class-select');
-
-        const semesterUid = semesterSelect ? semesterSelect.value : '';
-        const classUid = classSelect ? classSelect.value : '';
-
         if (currentFinSubTab === 'records') {
-            await openDirectAddFinRecord(classUid, semesterUid);
+            await openDirectAddFinRecord(classSelect?.value, semesterSelect?.value);
         } else {
-            await openDirectAddFinReceiptModal(classUid, semesterUid);
+            await openDirectAddFinReceiptModal(classSelect?.value, semesterSelect?.value);
         }
     }
 };
@@ -453,6 +447,7 @@ async function checkUser() {
             initQuillEditor();
             await loadClasses();
             await loadSemesters();
+            await loadSchools();
             await loadGlobalAnnClasses();
             await loadGlobalFinFilters();
             await loadAnnouncementCategories();
@@ -494,25 +489,131 @@ logoutBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 1. 班級管理 (classes) - 包含 QR Code 與複製網址功能
+ * 1. 學校管理 (school)
+ * =================================================== */
+const schoolListTable = document.getElementById('school-list-table');
+const schoolModal = document.getElementById('school-modal');
+const schoolModalTitle = document.getElementById('school-modal-title');
+const schoolModalDeleteBtn = document.getElementById('school-modal-delete-btn');
+const schoolEditUid = document.getElementById('school-edit-uid');
+const schoolNameInput = document.getElementById('school-name');
+const schoolIsDefault = document.getElementById('school-is-default');
+const saveSchoolBtn = document.getElementById('save-school-btn');
+
+async function loadSchools() {
+    showLoading();
+    try {
+        const { data } = await supabaseClient.from('school').select('*').order('is_default', { ascending: false }).order('created_at', { ascending: true });
+        schoolListTable.innerHTML = '';
+        if (data && data.length > 0) {
+            data.forEach(item => {
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i>預設</span>` : '';
+                schoolListTable.innerHTML += `
+                    <div class="custom-card-item">
+                        <div class="card-info">
+                            <div class="card-title">${defaultBadge}${item.name}</div>
+                        </div>
+                        <button class="icon-edit-btn" onclick="openEditSchoolModal('${item.uid}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        } else {
+            schoolListTable.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無學校資料</div>`;
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+window.openAddSchoolModal = function() {
+    schoolEditUid.value = '';
+    schoolNameInput.value = '';
+    schoolIsDefault.checked = false;
+    schoolModalTitle.textContent = '新增學校';
+    saveSchoolBtn.textContent = '新增';
+    schoolModalDeleteBtn.classList.add('hidden');
+    schoolModal.classList.remove('hidden');
+};
+
+window.openEditSchoolModal = function(uid, encodedName, isDefault) {
+    schoolEditUid.value = uid;
+    schoolNameInput.value = decodeURIComponent(encodedName || '');
+    schoolIsDefault.checked = isDefault === true || isDefault === 'true';
+    schoolModalTitle.textContent = '編輯學校';
+    saveSchoolBtn.textContent = '更新';
+    schoolModalDeleteBtn.classList.remove('hidden');
+    schoolModal.classList.remove('hidden');
+};
+
+saveSchoolBtn.addEventListener('click', async () => {
+    const name = schoolNameInput.value.trim();
+    const is_default = schoolIsDefault.checked;
+    const uid = schoolEditUid.value;
+    
+    if (!name) return showToast('請填寫學校名稱！', 'error');
+
+    showLoading();
+    try {
+        if (is_default) {
+            await supabaseClient.from('school').update({ is_default: false }).neq('uid', uid || 'none');
+        }
+
+        if (uid) {
+            const { error } = await supabaseClient.from('school').update({ name, is_default }).eq('uid', uid);
+            if (error) showToast('修改失敗: ' + error.message, 'error');
+            else { 
+                showToast('修改成功！'); 
+                closeModal('school-modal'); 
+                await loadSchools(); 
+                await loadClasses();
+            }
+        } else {
+            const { error } = await supabaseClient.from('school').insert([{ name, is_default }]);
+            if (error) showToast('新增失敗: ' + error.message, 'error');
+            else { 
+                showToast('新增成功！'); 
+                closeModal('school-modal'); 
+                await loadSchools(); 
+            }
+        }
+    } finally {
+        hideLoading();
+    }
+});
+
+/* ===================================================
+ * 2. 班級管理 (classes) - 結合 school 關聯
  * =================================================== */
 const classListTable = document.getElementById('class-list-table');
 const classModal = document.getElementById('class-modal');
 const classModalTitle = document.getElementById('class-modal-title');
 const classModalDeleteBtn = document.getElementById('class-modal-delete-btn');
 const classEditUid = document.getElementById('class-edit-uid');
-const classSchoolName = document.getElementById('class-school-name');
+const classSchoolUidSelect = document.getElementById('class-school-uid');
 const classYear = document.getElementById('class-year');
 const classNameInput = document.getElementById('class-name');
 const classIsDefault = document.getElementById('class-is-default');
 const saveClassBtn = document.getElementById('save-class-btn');
+
+async function populateSchoolDropdown(selectedUid = '') {
+    const { data: schools } = await supabaseClient.from('school').select('*').order('name', { ascending: true });
+    classSchoolUidSelect.innerHTML = '<option value="">-- 請選擇學校 --</option>';
+    if (schools) {
+        schools.forEach(s => {
+            classSchoolUidSelect.innerHTML += `<option value="${s.uid}">${s.name}</option>`;
+        });
+    }
+    if (selectedUid) classSchoolUidSelect.value = selectedUid;
+}
 
 async function loadClasses() {
     showLoading();
     try {
         const { data } = await supabaseClient
             .from('classes')
-            .select('*')
+            .select('*, school(uid, name)')
             .order('is_default', { ascending: false })
             .order('created_at', { ascending: true });
 
@@ -520,14 +621,14 @@ async function loadClasses() {
         if (data && data.length > 0) {
             data.forEach(item => {
                 const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
-                const schoolPrefix = item.SchoolName ? `${item.SchoolName} - ` : '';
+                const schoolName = item.school ? `${item.school.name} - ` : '';
                 classListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
-                            <div class="card-title">${defaultBadge}${schoolPrefix}${item.name}</div>
+                            <div class="card-title">${defaultBadge}${schoolName}${item.name}</div>
                             <div class="card-sub">${item.academic_year}學年度</div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${encodeURIComponent(item.SchoolName || '')}', '${item.academic_year}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
+                        <button class="icon-edit-btn" onclick="openEditClassModal('${item.uid}', '${item.school_uid || ''}', '${item.academic_year}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
@@ -541,28 +642,26 @@ async function loadClasses() {
     }
 }
 
-window.openAddClassModal = function() {
+window.openAddClassModal = async function() {
+    await populateSchoolDropdown();
     classEditUid.value = '';
-    if (classSchoolName) classSchoolName.value = '';
     classYear.value = '';
     classNameInput.value = '';
     classIsDefault.checked = false;
-    classModalTitle.textContent = '班級';
+    classModalTitle.textContent = '新增班級';
     saveClassBtn.textContent = '新增';
     classModalDeleteBtn.classList.add('hidden');
-    
     document.getElementById('class-qrcode-section').classList.add('hidden');
-    
     classModal.classList.remove('hidden');
 };
 
-window.openEditClassModal = function(uid, encodedSchoolName, year, encodedName, isDefault) {
+window.openEditClassModal = async function(uid, schoolUid, year, encodedName, isDefault) {
+    await populateSchoolDropdown(schoolUid);
     classEditUid.value = uid;
-    if (classSchoolName) classSchoolName.value = decodeURIComponent(encodedSchoolName || '');
     classYear.value = year;
     classNameInput.value = decodeURIComponent(encodedName || '');
     classIsDefault.checked = isDefault === true || isDefault === 'true';
-    classModalTitle.textContent = '班級';
+    classModalTitle.textContent = '編輯班級';
     saveClassBtn.textContent = '更新';
     classModalDeleteBtn.classList.remove('hidden');
 
@@ -581,7 +680,6 @@ window.openEditClassModal = function(uid, encodedSchoolName, year, encodedName, 
     });
 
     document.getElementById('class-qrcode-section').classList.remove('hidden');
-
     classModal.classList.remove('hidden');
 };
 
@@ -589,18 +687,19 @@ window.copyParentUrl = function() {
     const urlText = document.getElementById('class-parent-url-text').textContent;
     navigator.clipboard.writeText(urlText).then(() => {
         showToast('已成功複製網址！', 'success');
-    }).catch(err => {
+    }).catch(() => {
         showToast('複製失敗，請手動複製', 'error');
     });
 };
 
 saveClassBtn.addEventListener('click', async () => {
-    const SchoolName = classSchoolName ? classSchoolName.value.trim() : '';
+    const school_uid = classSchoolUidSelect.value;
     const academic_year = classYear.value.trim();
     const name = classNameInput.value.trim();
     const is_default = classIsDefault.checked;
     const uid = classEditUid.value;
     
+    if (!school_uid) return showToast('請選擇學校！', 'error');
     if (!academic_year || !name) return showToast('請填寫年度與班級全名！', 'error');
 
     showLoading();
@@ -609,13 +708,12 @@ saveClassBtn.addEventListener('click', async () => {
             await supabaseClient.from('classes').update({ is_default: false }).neq('uid', uid || 'none');
         }
 
-        const payload = { SchoolName, academic_year, name, is_default };
+        const payload = { school_uid, academic_year, name, is_default };
 
         if (uid) {
             const { error } = await supabaseClient.from('classes').update(payload).eq('uid', uid);
-            if (error) {
-                showToast('修改失敗: ' + error.message, 'error');
-            } else { 
+            if (error) showToast('修改失敗: ' + error.message, 'error');
+            else { 
                 showToast('修改成功！'); 
                 closeModal('class-modal'); 
                 await loadClasses(); 
@@ -624,9 +722,8 @@ saveClassBtn.addEventListener('click', async () => {
             }
         } else {
             const { error } = await supabaseClient.from('classes').insert([payload]);
-            if (error) {
-                showToast('新增失敗: ' + error.message, 'error');
-            } else { 
+            if (error) showToast('新增失敗: ' + error.message, 'error');
+            else { 
                 showToast('新增成功！'); 
                 closeModal('class-modal'); 
                 await loadClasses(); 
@@ -640,7 +737,7 @@ saveClassBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 1.5 學期管理 (semesters)
+ * 3. 學期管理 (semesters)
  * =================================================== */
 const semesterListTable = document.getElementById('semester-list-table');
 const semesterModal = document.getElementById('semester-modal');
@@ -656,11 +753,13 @@ async function loadSemesters() {
     showLoading();
     try {
         const { data } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
-        semesterListTable.innerHTML = '';
-        if (data && data.length > 0) {
-            data.forEach(item => {
+        
+        const renderHtml = (items) => {
+            if (!items || items.length === 0) return `<div style="text-align: center; color: #888; padding: 20px;">目前尚無學期資料</div>`;
+            let html = '';
+            items.forEach(item => {
                 const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
-                semesterListTable.innerHTML += `
+                html += `
                     <div class="custom-card-item">
                         <div class="card-info">
                             <div class="card-title">${defaultBadge}${item.name}</div>
@@ -672,9 +771,11 @@ async function loadSemesters() {
                     </div>
                 `;
             });
-        } else {
-            semesterListTable.innerHTML = `<div style="text-align: center; color: #888; padding: 20px;">目前尚無學期資料</div>`;
-        }
+            return html;
+        };
+
+        const htmlContent = renderHtml(data);
+        if (semesterListTable) semesterListTable.innerHTML = htmlContent;
     } finally {
         hideLoading();
     }
@@ -685,7 +786,7 @@ window.openAddSemesterModal = function() {
     semesterNameInput.value = '';
     semesterSortInput.value = '0';
     semesterIsDefault.checked = false;
-    semesterModalTitle.textContent = '學期';
+    semesterModalTitle.textContent = '新增學期';
     saveSemesterBtn.textContent = '新增';
     semesterModalDeleteBtn.classList.add('hidden');
     semesterModal.classList.remove('hidden');
@@ -696,7 +797,7 @@ window.openEditSemesterModal = function(uid, encodedName, sortOrder, isDefault) 
     semesterNameInput.value = decodeURIComponent(encodedName || '');
     semesterSortInput.value = sortOrder;
     semesterIsDefault.checked = isDefault === true || isDefault === 'true';
-    semesterModalTitle.textContent = '學期';
+    semesterModalTitle.textContent = '編輯學期';
     saveSemesterBtn.textContent = '更新';
     semesterModalDeleteBtn.classList.remove('hidden');
     semesterModal.classList.remove('hidden');
@@ -718,9 +819,8 @@ saveSemesterBtn.addEventListener('click', async () => {
 
         if (uid) {
             const { error } = await supabaseClient.from('semesters').update({ name, sort_order, is_default }).eq('uid', uid);
-            if (error) {
-                showToast('修改失敗: ' + error.message, 'error');
-            } else { 
+            if (error) showToast('修改失敗: ' + error.message, 'error');
+            else { 
                 showToast('修改成功！'); 
                 closeModal('semester-modal'); 
                 await loadSemesters(); 
@@ -728,9 +828,8 @@ saveSemesterBtn.addEventListener('click', async () => {
             }
         } else {
             const { error } = await supabaseClient.from('semesters').insert([{ name, sort_order, is_default }]);
-            if (error) {
-                showToast('新增失敗: ' + error.message, 'error');
-            } else { 
+            if (error) showToast('新增失敗: ' + error.message, 'error');
+            else { 
                 showToast('新增成功！'); 
                 closeModal('semester-modal'); 
                 await loadSemesters(); 
@@ -743,7 +842,7 @@ saveSemesterBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 2. 公告類別管理 (announcement_categories)
+ * 4. 公告類別管理 (announcement_categories)
  * =================================================== */
 const annCatListTable = document.getElementById('ann-cat-list-table');
 const annCatModal = document.getElementById('ann-cat-modal');
@@ -794,7 +893,7 @@ window.openAddAnnCatModal = function() {
     annCatName.value = '';
     annCatColor.value = '#1890ff';
     annCatIsDefault.checked = false;
-    annCatModalTitle.textContent = '公告類別';
+    annCatModalTitle.textContent = '新增公告類別';
     saveAnnCatBtn.textContent = '新增';
     annCatModalDeleteBtn.classList.add('hidden');
     annCatModal.classList.remove('hidden');
@@ -805,7 +904,7 @@ window.openEditAnnCatModal = function(uid, encodedName, color, isDefault) {
     annCatName.value = decodeURIComponent(encodedName || '');
     annCatColor.value = color || '#1890ff';
     annCatIsDefault.checked = isDefault === true || isDefault === 'true';
-    annCatModalTitle.textContent = '公告類別';
+    annCatModalTitle.textContent = '編輯公告類別';
     saveAnnCatBtn.textContent = '更新';
     annCatModalDeleteBtn.classList.remove('hidden');
     annCatModal.classList.remove('hidden');
@@ -839,7 +938,7 @@ saveAnnCatBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 3. 公告發布與管理 (announcements)
+ * 5. 公告發布與管理 (announcements)
  * =================================================== */
 const annListTable = document.getElementById('ann-list-table');
 const annModal = document.getElementById('ann-modal');
@@ -861,7 +960,7 @@ async function loadAnnouncements() {
 
         let query = supabaseClient
             .from('announcements')
-            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, name, SchoolName ), announcement_categories ( name, color )`)
+            .select(`uid, name, note, attachment_url, class_uid, category_uid, start_date, start_time, end_date, end_time, is_pinned, classes ( academic_year, name, school ( name ) ), announcement_categories ( name, color )`)
             .order('is_pinned', { ascending: false })
             .order('created_at', { ascending: false });
 
@@ -874,8 +973,8 @@ async function loadAnnouncements() {
         annListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
-                const classNameText = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未指定';
+                const schoolName = (item.classes && item.classes.school) ? `${item.classes.school.name} ` : '';
+                const classNameText = item.classes ? `${item.classes.academic_year} - ${schoolName}${item.classes.name}` : '未指定';
                 const catName = item.announcement_categories ? item.announcement_categories.name : '未指定';
                 const catColor = item.announcement_categories ? item.announcement_categories.color : '#64748b';
                 const pinBadge = item.is_pinned ? `<span class="pin-tag">置頂</span>` : '';
@@ -917,7 +1016,7 @@ async function loadAnnouncements() {
 }
 
 async function loadAnnOptions(defaultClassUid = null, defaultCatUid = null) {
-    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    const { data: classes } = await supabaseClient.from('classes').select('*, school(name)').order('academic_year', { ascending: false });
     annClassSelect.innerHTML = '<option value="">-- 請選擇班級 --</option>';
     
     let targetClassUid = defaultClassUid;
@@ -929,8 +1028,8 @@ async function loadAnnOptions(defaultClassUid = null, defaultCatUid = null) {
 
     if (classes) {
         classes.forEach(c => {
-            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
-            annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`;
+            const schoolName = c.school ? `${c.school.name} ` : '';
+            annClassSelect.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolName}${c.name}</option>`;
         });
     }
     if (targetClassUid) annClassSelect.value = targetClassUid;
@@ -970,7 +1069,7 @@ window.openAddAnnModal = async function(preselectedClassUid = null) {
         setCustomDateValue('end', '');
         annIsPinned.checked = false;
 
-        annModalTitle.textContent = '公告'; saveAnnBtn.textContent = '新增';
+        annModalTitle.textContent = '新增公告'; saveAnnBtn.textContent = '新增';
         annModalDeleteBtn.classList.add('hidden'); annModal.classList.remove('hidden');
     } finally {
         hideLoading();
@@ -999,7 +1098,7 @@ window.openEditAnnModal = async function(uid, classUid, catUid, encodedName, enc
         setCustomDateValue('end', endDate !== 'null' ? endDate : '');
         annIsPinned.checked = isPinned === 'true' || isPinned === true;
 
-        annModalTitle.textContent = '公告'; saveAnnBtn.textContent = '更新';
+        annModalTitle.textContent = '編輯公告'; saveAnnBtn.textContent = '更新';
         annModalDeleteBtn.classList.remove('hidden'); annModal.classList.remove('hidden');
     } finally {
         hideLoading();
@@ -1011,7 +1110,6 @@ saveAnnBtn.addEventListener('click', async () => {
     const category_uid = annCatSelect.value;
     const name = annTitle.value;
     const note = quillEditor ? quillEditor.root.innerHTML : '';
-
     const attachment_url = annAttachmentUrl.value.trim() || null;
     const start_date = document.getElementById('ann-start-date').value || null;
     const end_date = document.getElementById('ann-end-date').value || null;
@@ -1040,7 +1138,7 @@ saveAnnBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 4. 財務管理
+ * 6. 財務管理
  * =================================================== */
 async function loadFinancialRecords() {
     showLoading();
@@ -1054,7 +1152,7 @@ async function loadFinancialRecords() {
             .from('financial_records')
             .select(`
                 uid, name, remark, date, amount, type, class_uid, semester_uid,
-                classes ( academic_year, name, SchoolName ),
+                classes ( academic_year, name, school ( name ) ),
                 semesters ( name )
             `)
             .order('created_at', { ascending: false });
@@ -1100,8 +1198,8 @@ async function loadFinancialRecords() {
                 const amt = Number(item.amount) || 0;
                 if (isInc) totalInc += amt; else totalExp += amt;
 
-                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
-                const className = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未知班級';
+                const schoolName = (item.classes && item.classes.school) ? `${item.classes.school.name} ` : '';
+                const className = item.classes ? `${item.classes.academic_year} - ${schoolName}${item.classes.name}` : '未知班級';
                 const semesterName = item.semesters ? item.semesters.name : '未知學期';
                 const badge = isInc ? `<span class="type-badge inc">收入</span>` : `<span class="type-badge exp">支出</span>`;
 
@@ -1154,7 +1252,7 @@ async function loadFinancialReceipts() {
             .from('financial_receipts')
             .select(`
                 uid, receipt_url, remark, created_at, class_uid, semester_uid,
-                classes ( academic_year, name, SchoolName ),
+                classes ( academic_year, name, school ( name ) ),
                 semesters ( name )
             `)
             .order('created_at', { ascending: false });
@@ -1168,8 +1266,8 @@ async function loadFinancialReceipts() {
 
         if (data && data.length > 0) {
             data.forEach(item => {
-                const schoolPrefix = (item.classes && item.classes.SchoolName) ? `${item.classes.SchoolName} ` : '';
-                const className = item.classes ? `${item.classes.academic_year} - ${schoolPrefix}${item.classes.name}` : '未知班級';
+                const schoolName = (item.classes && item.classes.school) ? `${item.classes.school.name} ` : '';
+                const className = item.classes ? `${item.classes.academic_year} - ${schoolName}${item.classes.name}` : '未知班級';
                 const semesterName = item.semesters ? item.semesters.name : '未知學期';
                 const createdDate = item.created_at ? item.created_at.split('T')[0] : '';
 
@@ -1203,7 +1301,7 @@ async function loadFinancialReceipts() {
 }
 
 async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
-    const { data: classes } = await supabaseClient.from('classes').select('*').order('academic_year', { ascending: false });
+    const { data: classes } = await supabaseClient.from('classes').select('*, school(name)').order('academic_year', { ascending: false });
     const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
 
     let defaultClassUid = '';
@@ -1222,8 +1320,8 @@ async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
         if (!sel) return;
         sel.innerHTML = '<option value="">-- 請選擇班級 --</option>';
         if (classes) classes.forEach(c => { 
-            const schoolPrefix = c.SchoolName ? `${c.SchoolName} ` : '';
-            sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolPrefix}${c.name}</option>`; 
+            const schoolName = c.school ? `${c.school.name} ` : '';
+            sel.innerHTML += `<option value="${c.uid}">${c.academic_year} - ${schoolName}${c.name}</option>`; 
         });
         sel.value = finalClassUid;
     });
@@ -1248,7 +1346,7 @@ window.openDirectAddFinRecord = async function(classUid, semesterUid) {
         const today = new Date().toISOString().split('T')[0];
         setCustomDateValue('fin-record', today);
 
-        document.getElementById('fin-record-modal-title').textContent = '收支金額明細';
+        document.getElementById('fin-record-modal-title').textContent = '新增金額明細';
         document.getElementById('save-fin-record-btn').textContent = '新增';
         document.getElementById('fin-record-modal-delete-btn').classList.add('hidden');
         document.getElementById('fin-record-modal').classList.remove('hidden');
@@ -1266,7 +1364,7 @@ window.openDirectAddFinReceiptModal = async function(classUid, semesterUid) {
         document.getElementById('fin-receipt-remark').value = '';
         showImagePreview('fin-rcp', '');
 
-        document.getElementById('fin-receipt-modal-title').textContent = '發票與收據憑證';
+        document.getElementById('fin-receipt-modal-title').textContent = '上傳發票與收據憑證';
         document.getElementById('save-fin-receipt-btn').textContent = '新增';
         document.getElementById('fin-receipt-modal-delete-btn').classList.add('hidden');
         document.getElementById('fin-receipt-modal').classList.remove('hidden');
@@ -1286,7 +1384,7 @@ window.openEditFinRecordModal = async function(uid, encodedName, amount, type, d
         document.getElementById('fin-record-remark').value = decodeURIComponent(encodedRemark);
         setCustomDateValue('fin-record', date || '');
 
-        document.getElementById('fin-record-modal-title').textContent = '收支金額明細';
+        document.getElementById('fin-record-modal-title').textContent = '編輯金額明細';
         document.getElementById('save-fin-record-btn').textContent = '更新';
         document.getElementById('fin-record-modal-delete-btn').classList.remove('hidden');
         document.getElementById('fin-record-modal').classList.remove('hidden');
@@ -1305,7 +1403,7 @@ window.openEditFinReceiptModal = async function(uid, encodedUrl, encodedRemark, 
         document.getElementById('fin-receipt-remark').value = decodeURIComponent(encodedRemark);
         showImagePreview('fin-rcp', url);
 
-        document.getElementById('fin-receipt-modal-title').textContent = '發票與收據憑證';
+        document.getElementById('fin-receipt-modal-title').textContent = '編輯發票與收據憑證';
         document.getElementById('save-fin-receipt-btn').textContent = '更新';
         document.getElementById('fin-receipt-modal-delete-btn').classList.remove('hidden');
         document.getElementById('fin-receipt-modal').classList.remove('hidden');
@@ -1376,7 +1474,7 @@ document.getElementById('save-fin-receipt-btn').addEventListener('click', async 
 });
 
 /* ===================================================
- * 6. 獨立置中 Modal 日曆核心邏輯
+ * 7. 獨立置中 Modal 日曆核心邏輯
  * =================================================== */
 let activeTargetType = null; 
 let modalDPState = { year: 2026, month: 9 }; 
@@ -1475,7 +1573,7 @@ function setCustomDateValue(type, val) {
 }
 
 /* ===================================================
- * 7. 通用刪除二次確認 Modal 邏輯
+ * 8. 通用刪除二次確認 Modal 邏輯
  * =================================================== */
 const confirmDeleteModal = document.getElementById('confirm-delete-modal');
 
@@ -1491,7 +1589,16 @@ window.closeConfirmDeleteModal = function() {
 window.executeDelete = async function() {
     showLoading();
     try {
-        if (currentDeleteType === 'class') {
+        if (currentDeleteType === 'school') {
+            const uid = schoolEditUid.value;
+            const { error } = await supabaseClient.from('school').delete().eq('uid', uid);
+            if (error) showToast('刪除失敗: ' + error.message, 'error');
+            else { 
+                showToast('刪除成功！'); 
+                closeModal('school-modal'); 
+                await loadSchools(); 
+            }
+        } else if (currentDeleteType === 'class') {
             const uid = classEditUid.value;
             const { error } = await supabaseClient.from('classes').delete().eq('uid', uid);
             if (error) showToast('刪除失敗', 'error');
@@ -1519,7 +1626,6 @@ window.executeDelete = async function() {
             else { showToast('刪除成功！'); closeModal('ann-cat-modal'); await loadAnnouncementCategories(); }
         } else if (currentDeleteType === 'ann') {
             const uid = annEditUid.value;
-            
             const { data: annData } = await supabaseClient.from('announcements').select('attachment_url').eq('uid', uid).single();
             if (annData && annData.attachment_url) {
                 try {
@@ -1569,9 +1675,6 @@ window.executeDelete = async function() {
     }
 };
 
-/* ===================================================
- * 8. 圖片大圖彈窗 (Image Preview Modal) 邏輯
- * =================================================== */
 window.openImagePreviewModal = function(url) {
     if (!url) return;
     const modal = document.getElementById('image-preview-modal');
@@ -1585,12 +1688,8 @@ window.openImagePreviewModal = function(url) {
 window.closeImagePreviewModal = function() {
     const modal = document.getElementById('image-preview-modal');
     const img = document.getElementById('image-preview-modal-img');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-    if (img) {
-        img.src = '';
-    }
+    if (modal) modal.classList.add('hidden');
+    if (img) img.src = '';
 };
 
 checkUser();
