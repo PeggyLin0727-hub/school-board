@@ -508,7 +508,7 @@ async function loadSchools() {
         schoolListTable.innerHTML = '';
         if (data && data.length > 0) {
             data.forEach(item => {
-                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i>預設</span>` : '';
+                const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
                 schoolListTable.innerHTML += `
                     <div class="custom-card-item">
                         <div class="card-info">
