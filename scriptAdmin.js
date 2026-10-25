@@ -765,7 +765,6 @@ async function loadSemesters() {
                     <div class="custom-card-item">
                         <div class="card-info">
                             <div class="card-title">${defaultBadge}${item.name}</div>
-                            <div class="card-sub">建立時間: ${createdDate}</div>
                         </div>
                         <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
