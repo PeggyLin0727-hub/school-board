@@ -169,7 +169,6 @@ async function loadAnnouncements() {
             const catColor = item.announcement_categories ? item.announcement_categories.color : '#64748b';
             const pinBadge = item.is_pinned ? `<span class="pin-tag">置頂</span>` : '';
             
-            // 檢查是否有實際內容或圖片附件
             const hasNote = item.note && item.note.trim() !== '' && item.note !== '<p><br></p>';
             const hasAttachment = item.attachment_url && item.attachment_url.trim() !== '';
             const hasContent = hasNote || hasAttachment;
@@ -184,7 +183,6 @@ async function loadAnnouncements() {
             const contentHiddenClass = isExpanded ? '' : 'hidden';
             const chevronIconClass = isExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
 
-            // 若無內容，右側就不顯示展開按鈕與提示
             const rightActionHtml = hasContent ? `
                 <div style="display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 14px; font-weight: 500; cursor: pointer;" onclick="toggleAnnExpand('${item.uid}', true)">
                     <span>詳細內容</span>
@@ -197,7 +195,6 @@ async function loadAnnouncements() {
 
             listEl.innerHTML += `
                 <div class="custom-card-item" style="flex-direction: column; align-items: stretch;">
-                    <!-- 上方標籤列與右側展開按鈕 -->
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             ${pinBadge}
@@ -206,12 +203,10 @@ async function loadAnnouncements() {
                         ${rightActionHtml}
                     </div>
 
-                    <!-- 下方標題列 -->
                     <div style="margin-top: 6px; ${cardCursorStyle}" ${clickEventAttr}>
                         <div class="card-title" style="font-size: 16px; font-weight: bold; color: #1e293b; margin-bottom: 0;">${item.name}</div>
                     </div>
 
-                    <!-- 詳細內容區塊（僅在有內容時渲染） -->
                     ${hasContent ? `
                         <div id="ann-content-${item.uid}" class="${contentHiddenClass}" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
                             ${imgHtml}
@@ -228,7 +223,8 @@ async function loadAnnouncements() {
 
 async function initSemesters() {
     const semSelect = document.getElementById('semester-select');
-    const { data } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+    // 改為用 created_at 排序
+    const { data } = await supabaseClient.from('semesters').select('*').order('created_at', { ascending: true });
     semSelect.innerHTML = '<option value="">-- 全部學期 --</option>';
     if (data) {
         data.forEach(s => {

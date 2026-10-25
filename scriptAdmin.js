@@ -374,7 +374,8 @@ async function loadGlobalFinFilters() {
     const classSelect = document.getElementById('global-fin-class-select');
     if (!semesterSelect || !classSelect) return;
 
-    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+    // 改為用 created_at 排序
+    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('created_at', { ascending: true });
     semesterSelect.innerHTML = '<option value="">-- 全部學期 --</option>';
     let defaultSemUid = '';
     if (semesters) {
@@ -737,7 +738,7 @@ saveClassBtn.addEventListener('click', async () => {
 });
 
 /* ===================================================
- * 3. 學期管理 (semesters)
+ * 3. 學期管理 (semesters) - 已移除 sort_order
  * =================================================== */
 const semesterListTable = document.getElementById('semester-list-table');
 const semesterModal = document.getElementById('semester-modal');
@@ -745,27 +746,28 @@ const semesterModalTitle = document.getElementById('semester-modal-title');
 const semesterModalDeleteBtn = document.getElementById('semester-modal-delete-btn');
 const semesterEditUid = document.getElementById('semester-edit-uid');
 const semesterNameInput = document.getElementById('semester-name');
-const semesterSortInput = document.getElementById('semester-sort');
 const semesterIsDefault = document.getElementById('semester-is-default');
 const saveSemesterBtn = document.getElementById('save-semester-btn');
 
 async function loadSemesters() {
     showLoading();
     try {
-        const { data } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+        // 改用 created_at 排序
+        const { data } = await supabaseClient.from('semesters').select('*').order('created_at', { ascending: true });
         
         const renderHtml = (items) => {
             if (!items || items.length === 0) return `<div style="text-align: center; color: #888; padding: 20px;">目前尚無學期資料</div>`;
             let html = '';
             items.forEach(item => {
                 const defaultBadge = item.is_default ? `<span style="background: #fff8e1; color: #f5b041; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;"><i class="fa-solid fa-star"></i></span>` : '';
+                const createdDate = item.created_at ? item.created_at.replace('T', ' ').substring(0, 16) : '';
                 html += `
                     <div class="custom-card-item">
                         <div class="card-info">
                             <div class="card-title">${defaultBadge}${item.name}</div>
-                            <div class="card-sub">排序編號: ${item.sort_order ?? 0}</div>
+                            <div class="card-sub">建立時間: ${createdDate}</div>
                         </div>
-                        <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${encodeURIComponent(item.name || '')}', '${item.sort_order ?? 0}', ${item.is_default})" title="編輯">
+                        <button class="icon-edit-btn" onclick="openEditSemesterModal('${item.uid}', '${encodeURIComponent(item.name || '')}', ${item.is_default})" title="編輯">
                             <i class="fa-solid fa-pen"></i>
                         </button>
                     </div>
@@ -784,7 +786,6 @@ async function loadSemesters() {
 window.openAddSemesterModal = function() {
     semesterEditUid.value = '';
     semesterNameInput.value = '';
-    semesterSortInput.value = '0';
     semesterIsDefault.checked = false;
     semesterModalTitle.textContent = '新增學期';
     saveSemesterBtn.textContent = '新增';
@@ -792,10 +793,9 @@ window.openAddSemesterModal = function() {
     semesterModal.classList.remove('hidden');
 };
 
-window.openEditSemesterModal = function(uid, encodedName, sortOrder, isDefault) {
+window.openEditSemesterModal = function(uid, encodedName, isDefault) {
     semesterEditUid.value = uid;
     semesterNameInput.value = decodeURIComponent(encodedName || '');
-    semesterSortInput.value = sortOrder;
     semesterIsDefault.checked = isDefault === true || isDefault === 'true';
     semesterModalTitle.textContent = '編輯學期';
     saveSemesterBtn.textContent = '更新';
@@ -805,7 +805,6 @@ window.openEditSemesterModal = function(uid, encodedName, sortOrder, isDefault) 
 
 saveSemesterBtn.addEventListener('click', async () => {
     const name = semesterNameInput.value.trim();
-    const sort_order = parseInt(semesterSortInput.value) || 0;
     const is_default = semesterIsDefault.checked;
     const uid = semesterEditUid.value;
     
@@ -818,7 +817,7 @@ saveSemesterBtn.addEventListener('click', async () => {
         }
 
         if (uid) {
-            const { error } = await supabaseClient.from('semesters').update({ name, sort_order, is_default }).eq('uid', uid);
+            const { error } = await supabaseClient.from('semesters').update({ name, is_default }).eq('uid', uid);
             if (error) showToast('修改失敗: ' + error.message, 'error');
             else { 
                 showToast('修改成功！'); 
@@ -827,7 +826,7 @@ saveSemesterBtn.addEventListener('click', async () => {
                 await loadGlobalFinFilters(); 
             }
         } else {
-            const { error } = await supabaseClient.from('semesters').insert([{ name, sort_order, is_default }]);
+            const { error } = await supabaseClient.from('semesters').insert([{ name, is_default }]);
             if (error) showToast('新增失敗: ' + error.message, 'error');
             else { 
                 showToast('新增成功！'); 
@@ -1302,7 +1301,8 @@ async function loadFinancialReceipts() {
 
 async function populateFinModalDropdowns(targetClassUid, targetSemesterUid) {
     const { data: classes } = await supabaseClient.from('classes').select('*, school(name)').order('academic_year', { ascending: false });
-    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('sort_order', { ascending: true });
+    // 改用 created_at 排序
+    const { data: semesters } = await supabaseClient.from('semesters').select('*').order('created_at', { ascending: true });
 
     let defaultClassUid = '';
     if (classes) classes.forEach(c => { if (c.is_default) defaultClassUid = c.uid; });
