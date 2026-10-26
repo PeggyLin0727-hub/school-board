@@ -46,11 +46,12 @@
 
     <!-- 管理操作區塊 -->
     <div id="admin-section" class="card hidden">
-        <!-- 主選單：班級管理、公告管理(預設)、財務管理 -->
+        <!-- 主選單：班級管理、公告管理(預設)、財務管理、追蹤管理 -->
         <div class="tabs">
             <button class="tab-btn" onclick="switchTab('classes-tab')">班級管理</button>
             <button class="tab-btn active" onclick="switchTab('ann-main-tab')">公告管理</button>
             <button class="tab-btn" onclick="switchTab('fin-main-tab')">財務管理</button>
+            <button class="tab-btn" onclick="switchTab('track-main-tab')">追蹤管理</button>
         </div>
 
         <!-- 1. 班級管理頁籤（內含 3 個膠囊切換：班級設定、學期設定、學校設定） -->
@@ -132,7 +133,56 @@
             </div>
         </div>
 
-        <button class="fab-btn" onclick="handleFabClick()">+</button>
+        <!-- 4. 追蹤管理頁籤 -->
+        <div id="track-main-tab" class="tab-content">
+            <div class="sub-tab-pill-container">
+                <button id="sub-pill-track-status" class="sub-pill-btn active" onclick="switchTrackSubTab('student_track_status')">狀態設定</button>
+                <button id="sub-pill-track-items" class="sub-pill-btn" onclick="switchTrackSubTab('tracking_items')">項目設定</button>
+            </div>
+
+            <!-- 共同班級與學期篩選列 -->
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <select id="global-track-class-select" onchange="onGlobalTrackFilterChanged()" style="flex:1; margin-bottom:0;">
+                    <option value="">-- 請選擇班級 --</option>
+                </select>
+            </div>
+
+            <!-- 子分頁 1: tracking_items -->
+            <div id="track-items-view" class="hidden">
+                <h3>追蹤項目列表</h3>
+                <div id="track-items-list" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- 子分頁 2: student_track_status -->
+            <div id="track-status-view">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 250px;">
+                        
+                        <select id="track-status-item-select" onchange="onTrackStatusItemChanged()" style="margin-bottom: 0; flex: 1;">
+                            <option value="">-- 請先選擇追蹤項目 --</option>
+                        </select>
+                    </div>
+                    <!-- 簡易版 / 詳細版 切換開關 -->
+                    <div class="sub-tab-pill-container" style="margin-bottom: 0; width: 200px;">
+                        <button id="sub-pill-track-simple" class="sub-pill-btn active" onclick="switchTrackStatusMode('simple')" style="padding: 6px 12px; font-size: 13px;">簡易版</button>
+                        <button id="sub-pill-track-detail" class="sub-pill-btn" onclick="switchTrackStatusMode('detail')" style="padding: 6px 12px; font-size: 13px;">詳細版</button>
+                    </div>
+                </div>
+
+                <!-- 簡易版操作列 (選取要批次點擊改變的目標狀態) -->
+                <div id="track-simple-control-bar" class="hidden" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-weight: bold; color: #1e293b; font-size: 14px;"><i class="fa-solid fa-hand-pointer text-success"></i> 點擊學生格子時套用狀態：</span>
+                    <div id="track-target-status-pills" style="display: flex; gap: 8px;">
+                        <!-- 動態生成目標狀態按鈕 -->
+                    </div>
+                </div>
+
+                <!-- 學生狀態檢視區塊 (簡易版網格 / 詳細版清單) -->
+                <div id="track-status-content-container"></div>
+            </div>
+        </div>
+
+        <button id="main-fab-btn" class="fab-btn" onclick="handleFabClick()">+</button>
     </div>
 
     <!-- 1. 班級 Modal -->
@@ -201,7 +251,7 @@
         </div>
     </div>
 
-    <!-- 1.5 學期 Modal (已移除排序編號輸入欄位) -->
+    <!-- 1.5 學期 Modal -->
     <div id="semester-modal" class="modal-overlay hidden">
         <div class="modal-card">
             <div class="modal-header">
@@ -471,7 +521,39 @@
         </div>
     </div>
 
-    <!-- 6. 日曆彈窗 -->
+    <!-- 6. 追蹤項目 Modal (tracking_items) -->
+    <div id="track-item-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="track-item-modal-title">新增追蹤項目</h3>
+                <button id="track-item-modal-delete-btn" class="trash-btn hidden" onclick="openConfirmDeleteModal('track-item')" title="刪除"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <input type="hidden" id="track-item-edit-uid">
+
+            <div class="readonly-badge-box" style="flex-direction: column; gap: 8px; align-items: stretch;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="width: 60px; margin-bottom:0; font-weight:bold;"><i class="fa-solid fa-school"></i> 班級:</label>
+                    <select id="track-item-class-select" style="flex:1; margin-bottom:0; padding: 6px 10px;"></select>
+                </div>
+            </div>
+
+            <label>項目名稱 (title) <span style="color:red;">*</span></label>
+            <input type="text" id="track-item-name" >
+
+            <label>類別 (category) <span style="color:red;">*</span></label>
+            <select id="track-item-category">
+                <option value="預設">預設</option>
+                <option value="作業">作業</option>
+            </select>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('track-item-modal')">取消</button>
+                <button id="save-track-item-btn">確認儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. 日曆彈窗 -->
     <div id="datepicker-modal" class="datepicker-modal-overlay hidden">
         <div class="datepicker-modal-card">
             <div class="dp-top-bar">
@@ -500,7 +582,7 @@
         </div>
     </div>
 
-    <!-- 7. 刪除二次確認 Modal -->
+    <!-- 8. 刪除二次確認 Modal -->
     <div id="confirm-delete-modal" class="modal-overlay hidden">
         <div class="modal-card confirm-card">
             <div class="alert-icon-wrapper"><i class="fa-solid fa-triangle-exclamation"></i></div>
@@ -513,7 +595,7 @@
         </div>
     </div>
 
-    <!-- 8. 圖片預覽 Modal (發票憑證大圖彈窗) -->
+    <!-- 9. 圖片預覽 Modal -->
     <div id="image-preview-modal" class="modal-overlay hidden" onclick="closeImagePreviewModal()">
         <div class="image-preview-card" onclick="event.stopPropagation()">
             <button type="button" class="dp-x-btn image-preview-close-btn" onclick="closeImagePreviewModal()">
@@ -524,6 +606,6 @@
     </div>
 
     <script src="app.js?v=261024"></script>
-    <script src="scriptAdmin.js?v=261025"></script>
+    <script src="scriptAdmin.js?v=261026"></script>
 </body>
 </html>
